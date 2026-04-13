@@ -43,4 +43,4 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_SIGNAL_SERVER_URL
-        value: https://skillbridge-server.onrender.com
+        value: https://skillup-live.onrender.com
