@@ -1,0 +1,11 @@
+{
+  "name": "nexmeet-webrtc",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install:all": "cd server && npm install && cd ../skillup && npm install",
+    "dev:server": "cd server && npm run dev",
+    "dev:frontend": "cd skillup && npm run dev",
+    "build:frontend": "cd skillup && npm run build"
+  }
+}

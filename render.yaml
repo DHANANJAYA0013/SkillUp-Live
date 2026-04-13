@@ -1,0 +1,46 @@
+# services:
+#   # ── Signaling Server (Node.js) ─────────────────────────────────────────
+#   - type: web
+#     name: nexmeet-server
+#     env: node
+#     rootDir: server
+#     buildCommand: npm install
+#     startCommand: node index.js
+#     envVars:
+#       - key: PORT
+#         value: 10000
+
+#   # ── Frontend (Static Site) ─────────────────────────────────────────────
+#   - type: web
+#     name: nexmeet-client
+#     env: static
+#     rootDir: skillup
+#     buildCommand: npm install && npm run build
+#     staticPublishPath: dist
+#     envVars:
+#       - key: VITE_SIGNAL_SERVER_URL
+#         value: https://nexmeet-server.onrender.com
+
+
+services:
+  # ── Signaling Server (Node.js) ─────────────────────────────────────────
+  - type: web
+    name: skillbridge-server
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: PORT
+        value: 10000
+
+  # ── Frontend (Static Site) ─────────────────────────────────────────────
+  - type: web
+    name: skillbridge-client
+    runtime: static
+    rootDir: skillup
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_SIGNAL_SERVER_URL
+        value: https://skillbridge-server.onrender.com
