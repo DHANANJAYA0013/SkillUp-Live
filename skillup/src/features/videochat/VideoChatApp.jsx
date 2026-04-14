@@ -31,6 +31,7 @@ function Lobby({ onJoin, onBack }) {
         <div className="grid-lines" />
       </div>
 
+
       <div className="lobby-card">
         <button className="back-nav-btn" onClick={onBack} type="button" aria-label="Go back">
           <BackIcon />
