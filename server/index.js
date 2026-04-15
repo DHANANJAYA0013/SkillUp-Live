@@ -188,8 +188,8 @@ io.on("connection", (socket) => {
 const PORT = process.env.PORT || 4000;
 
 mongoose
-  .connect(process.env.MONGODB_URI || "mongodb://localhost:27017/nexlearn", {
-    dbName: process.env.MONGODB_DB || "nexlearn",
+  .connect(process.env.MONGODB_URI || "mongodb://localhost:27017/skillup", {
+    dbName: process.env.MONGODB_DB || "skillup",
   })
   .then(() => {
     console.log("MongoDB connected");
