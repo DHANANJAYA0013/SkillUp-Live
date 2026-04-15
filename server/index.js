@@ -1,24 +1,35 @@
+require("dotenv").config({ path: require("path").resolve(__dirname, ".env") });
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
+const mongoose = require("mongoose");
+const { router: authRouter } = require("./routes/auth");
 
 const app = express();
 
+const allowedOrigins = (process.env.CLIENT_URLS || process.env.CLIENT_URL || "http://localhost:8080")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`CORS blocked origin: ${origin}`));
+  },
+  credentials: true,
+};
+
 app.use(
-  cors({
-    origin: "*",
-    methods: ["GET", "POST"],
-  })
+  cors(corsOptions)
 );
 app.use(express.json());
+app.use("/api/auth", authRouter);
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
-  },
+  cors: corsOptions,
   transports: ["websocket", "polling"],
   maxHttpBufferSize: 1e7,
   pingTimeout: 60000,
@@ -63,6 +74,10 @@ app.get("/", (_req, res) => {
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, rooms: rooms.size });
+});
+
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok", rooms: rooms.size, timestamp: new Date() });
 });
 
 app.get("/room/:id", (req, res) => {
@@ -171,6 +186,18 @@ io.on("connection", (socket) => {
 });
 
 const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+
+mongoose
+  .connect(process.env.MONGODB_URI || "mongodb://localhost:27017/nexlearn", {
+    dbName: process.env.MONGODB_DB || "nexlearn",
+  })
+  .then(() => {
+    console.log("MongoDB connected");
+    server.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("MongoDB connection error:", err.message);
+    process.exit(1);
+  });

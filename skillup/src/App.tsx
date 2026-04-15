@@ -23,6 +23,14 @@ import ChatPage from "./pages/ChatPage";
 import LiveSplashPage from "./pages/LiveSplashPage";
 import LiveSessionPage from "./pages/LiveSessionPage";
 import ScrollToTop from "./components/ScrollToTop";
+import { AuthProvider } from "./features/authsystem/AuthContext";
+import { AuthGuard } from "./features/authsystem/components/AuthGuard";
+import AuthLoginPage from "./features/authsystem/pages/AuthLoginPage";
+import AuthGithubCallbackPage from "./features/authsystem/pages/AuthGithubCallbackPage";
+import AuthRolePage from "./features/authsystem/pages/AuthRolePage";
+import AuthLearnerProfilePage from "./features/authsystem/pages/AuthLearnerProfilePage";
+import AuthTeacherProfilePage from "./features/authsystem/pages/AuthTeacherProfilePage";
+import AuthHomePage from "./features/authsystem/pages/AuthHomePage";
 
 const queryClient = new QueryClient();
 const isAdminAuthenticated = () => localStorage.getItem("isAdminAuthenticated") === "true";
@@ -35,28 +43,71 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <ScrollToTop />
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/landing" element={<LandingPage />} />
-            <Route path="/start-live" element={<LiveSplashPage />} />
-            <Route path="/live-session" element={<LiveSessionPage />} />
-            <Route path="/signup" element={<SignupPage />} />
-            <Route path="/signin" element={<SigninPage />} />
-            <Route path="/mentors" element={<MentorsPage />} />
-            <Route path="/mentors/:id" element={<MentorProfilePage />} />
-            <Route path="/skills" element={<SkillsPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/teacher-dashboard" element={<TeacherDashboardPage />} />
-            <Route path="/admin-login" element={<AdminLoginPage />} />
-            <Route
-              path="/admin-dashboard"
-              element={isAdminAuthenticated() ? <AdminDashboardPage /> : <Navigate to="/admin-login" replace />}
-            />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/notifications" element={<NotificationsPage />} />
-            <Route path="/chat/:id" element={<ChatPage />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <AuthProvider>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/landing" element={<LandingPage />} />
+              <Route path="/start-live" element={<LiveSplashPage />} />
+              <Route path="/live-session" element={<LiveSessionPage />} />
+              <Route path="/signup" element={<SignupPage />} />
+              <Route path="/signin" element={<SigninPage />} />
+              <Route path="/mentors" element={<MentorsPage />} />
+              <Route path="/mentors/:id" element={<MentorProfilePage />} />
+              <Route path="/skills" element={<SkillsPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/teacher-dashboard" element={<TeacherDashboardPage />} />
+              <Route path="/admin-login" element={<AdminLoginPage />} />
+              <Route
+                path="/admin-dashboard"
+                element={isAdminAuthenticated() ? <AdminDashboardPage /> : <Navigate to="/admin-login" replace />}
+              />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
+              <Route path="/chat/:id" element={<ChatPage />} />
+
+              <Route path="/auth" element={<AuthLoginPage />} />
+              {/* <Route path="/authsystem" element={<AuthLoginPage />} /> */}
+              <Route path="/authsystem/onboard" element={<Navigate to="/auth/onboard" replace />} />
+              <Route path="/authsystem/onboard/learner" element={<Navigate to="/auth/onboard/learner" replace />} />
+              <Route path="/authsystem/onboard/teacher" element={<Navigate to="/auth/onboard/teacher" replace />} />
+              <Route path="/authsystem/home" element={<Navigate to="/landing" replace />} />
+              <Route path="/auth/github-callback" element={<AuthGithubCallbackPage />} />
+              <Route
+                path="/auth/onboard"
+                element={
+                  <AuthGuard>
+                    <AuthRolePage />
+                  </AuthGuard>
+                }
+              />
+              <Route
+                path="/auth/onboard/learner"
+                element={
+                  <AuthGuard>
+                    <AuthLearnerProfilePage />
+                  </AuthGuard>
+                }
+              />
+              <Route
+                path="/auth/onboard/teacher"
+                element={
+                  <AuthGuard>
+                    <AuthTeacherProfilePage />
+                  </AuthGuard>
+                }
+              />
+              <Route
+                path="/auth/home"
+                element={
+                  <AuthGuard>
+                    <AuthHomePage />
+                  </AuthGuard>
+                }
+              />
+
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
     </ThemeProvider>

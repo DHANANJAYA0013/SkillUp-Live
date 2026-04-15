@@ -96,7 +96,7 @@ const Index = () => {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(239_84%_67%/0.1),transparent_60%)]" />
 
         <section className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-14 sm:pb-16 text-center">
-          <Link to="/signup" className="absolute top-4 right-4 sm:top-6 sm:right-6 lg:right-8">
+          <Link to="/auth" className="absolute top-4 right-4 sm:top-6 sm:right-6 lg:right-8">
             <Button size="lg" className="gradient-primary text-primary-foreground border-0 gap-2 hover:opacity-90">
               Get Started <ArrowRight className="h-4 w-4" />
             </Button>
@@ -117,7 +117,7 @@ const Index = () => {
           </p>
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-            <Link to="/signin">
+            <Link to="/auth" className="w-full sm:w-auto">
               <Button size="lg" variant="outline" className="gap-2">
                 <BookOpen className="h-4 w-4" /> Sign In
               </Button>

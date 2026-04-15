@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import Particles, { initParticlesEngine } from "@tsparticles/react";
 import { loadSlim } from "@tsparticles/slim";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/features/authsystem/AuthContext";
+import { API_BASE } from "@/features/authsystem/config";
+import type { AuthUser } from "@/features/authsystem/types";
 
 const profileSkills = ["React", "TypeScript", "System Design", "GraphQL"];
 
@@ -24,7 +29,7 @@ const particlesOptions = {
     events: {
       onHover: {
         enable: true,
-        mode: "grab",
+        mode: "grab" as const,
       },
       resize: {
         enable: true,
@@ -51,10 +56,10 @@ const particlesOptions = {
       width: 1,
     },
     move: {
-      direction: "none",
+      direction: "none" as const,
       enable: true,
       outModes: {
-        default: "out",
+        default: "out" as const,
       },
       random: false,
       speed: 0.8,
@@ -70,7 +75,7 @@ const particlesOptions = {
       value: 0.25,
     },
     shape: {
-      type: "circle",
+      type: "circle" as const,
     },
     size: {
       value: { min: 1, max: 3 },
@@ -80,7 +85,12 @@ const particlesOptions = {
 };
 
 const ProfilePage = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { user: authUser, token, logout } = useAuth();
   const [particlesReady, setParticlesReady] = useState(false);
+  const [users, setUsers] = useState<AuthUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
   useEffect(() => {
     initParticlesEngine(async (engine) => {
@@ -89,6 +99,45 @@ const ProfilePage = () => {
       setParticlesReady(true);
     });
   }, []);
+
+  const loadUsers = async () => {
+    if (!token) {
+      toast({ title: "Not signed in", description: "Sign in via authsystem first.", variant: "destructive" });
+      return;
+    }
+
+    setLoadingUsers(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/users`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to fetch users");
+      setUsers(Array.isArray(data.users) ? data.users : []);
+    } catch (error) {
+      toast({
+        title: "Cannot load users",
+        description: error instanceof Error ? error.message : "Try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const handleSignout = () => {
+    logout();
+    navigate("/auth", { replace: true });
+  };
+
+  const displayName = authUser?.name || "Dhananjaya";
+  const displayEmail = authUser?.email || "dhananjaya@skillbridge.io";
+  const displayRole = authUser?.role || "teacher";
+  const displayAvatar = authUser?.avatar || "https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=400&q=80";
+  const profile = authUser?.profile || {};
+  const profileBio = typeof profile.bio === "string" && profile.bio.trim().length > 0
+    ? profile.bio
+    : "Full-stack mentor helping learners master React, TypeScript, and system design through real-world projects.";
 
   return (
     <div className="relative min-h-screen bg-background overflow-hidden">
@@ -110,15 +159,15 @@ const ProfilePage = () => {
             <CardContent className="pt-6 flex flex-col items-center text-center gap-4">
               <Avatar className="h-28 w-28 shadow-card">
                 <AvatarImage
-                  src="https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=400&q=80"
-                  alt="Dhananjaya"
+                  src={displayAvatar}
+                  alt={displayName}
                 />
-                <AvatarFallback>DH</AvatarFallback>
+                <AvatarFallback>{displayName.slice(0, 2).toUpperCase()}</AvatarFallback>
               </Avatar>
               <div className="space-y-1">
-                <h2 className="text-xl font-semibold text-foreground">Dhananjaya</h2>
-                <p className="text-sm text-muted-foreground">Teacher · Bengaluru, IN</p>
-                <p className="text-sm text-muted-foreground">dhananjaya@skillbridge.io</p>
+                <h2 className="text-xl font-semibold text-foreground">{displayName}</h2>
+                <p className="text-sm text-muted-foreground" style={{ textTransform: "capitalize" }}>{displayRole} · Bengaluru, IN</p>
+                <p className="text-sm text-muted-foreground">{displayEmail}</p>
               </div>
               <Button variant="outline" className="mt-2 w-full max-w-[180px]">Upload picture</Button>
             </CardContent>
@@ -137,11 +186,11 @@ const ProfilePage = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="fullName">Full name</Label>
-                    <Input id="fullName" defaultValue="Dhananjaya" />
+                    <Input id="fullName" defaultValue={displayName} />
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" defaultValue="dhananjaya@skillbridge.io" />
+                    <Input id="email" type="email" defaultValue={displayEmail} />
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="location">Location</Label>
@@ -149,12 +198,13 @@ const ProfilePage = () => {
                   </div>
                   <div className="space-y-1.5">
                     <Label>Role</Label>
-                    <Select defaultValue="teacher">
+                    <Select defaultValue={displayRole || "teacher"}>
                       <SelectTrigger className="bg-card">
                         <SelectValue placeholder="Select a role" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="teacher">Teacher</SelectItem>
+                        <SelectItem value="learner">Learner</SelectItem>
                         <SelectItem value="mentor">Mentor</SelectItem>
                         <SelectItem value="admin">Admin</SelectItem>
                       </SelectContent>
@@ -165,11 +215,94 @@ const ProfilePage = () => {
                     <Textarea
                       id="bio"
                       rows={4}
-                      defaultValue="Full-stack mentor helping learners master React, TypeScript, and system design through real-world projects."
+                      defaultValue={profileBio}
                       className="bg-card"
                     />
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-card">
+              <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-0 gap-3 pb-4">
+                <div>
+                  <CardTitle className="text-lg">Auth Account Actions</CardTitle>
+                  <CardDescription>Moved from auth/home. Manage auth session and inspect registered users.</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-3">
+                  <Button variant="outline" onClick={loadUsers} disabled={loadingUsers}>
+                    {loadingUsers ? "Loading users..." : "Load all users"}
+                  </Button>
+                  <Button variant="outline" onClick={handleSignout}>Sign out</Button>
+                </div>
+
+                {users.length > 0 && (
+                  <>
+                    <p className="text-sm text-muted-foreground">Total users: {users.length}</p>
+                    <div className="space-y-3">
+                      {users.map((item) => {
+                        const itemProfile = item.profile || {};
+                        const provider = item.googleId ? "google" : item.githubId ? "github" : "unknown";
+
+                        return (
+                          <div key={item._id} className="rounded-md border p-3 space-y-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <p className="font-medium">{item.name}</p>
+                                <p className="text-sm text-muted-foreground">{item.email}</p>
+                              </div>
+                              <div className="text-xs text-muted-foreground text-right">
+                                <p>Provider: {provider}</p>
+                                <p>Joined: {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "N/A"}</p>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 text-xs">
+                              <span className="rounded-full border px-2 py-1">role: {item.role || "pending"}</span>
+                              <span className="rounded-full border px-2 py-1">
+                                profile: {item.profileCompleted ? "complete" : "incomplete"}
+                              </span>
+                            </div>
+
+                            {item.role === "teacher" ? (
+                              <div className="space-y-1 text-sm">
+                                {Array.isArray(itemProfile.skills) && itemProfile.skills.length > 0 && (
+                                  <p><strong>Skills:</strong> {itemProfile.skills.join(", ")}</p>
+                                )}
+                                {itemProfile.yearsOfExperience !== null && itemProfile.yearsOfExperience !== undefined && (
+                                  <p><strong>Experience:</strong> {itemProfile.yearsOfExperience} years</p>
+                                )}
+                                {typeof itemProfile.bio === "string" && itemProfile.bio.trim().length > 0 && (
+                                  <p><strong>Bio:</strong> {itemProfile.bio}</p>
+                                )}
+                                {Array.isArray(itemProfile.certifications) && itemProfile.certifications.length > 0 && (
+                                  <p><strong>Certifications:</strong> {itemProfile.certifications.join(", ")}</p>
+                                )}
+                                {Array.isArray(itemProfile.portfolioLinks) && itemProfile.portfolioLinks.length > 0 && (
+                                  <p><strong>Portfolio:</strong> {itemProfile.portfolioLinks.join(", ")}</p>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="space-y-1 text-sm">
+                                {Array.isArray(itemProfile.learningInterests) && itemProfile.learningInterests.length > 0 && (
+                                  <p><strong>Learning Interests:</strong> {itemProfile.learningInterests.join(", ")}</p>
+                                )}
+                                {Array.isArray(itemProfile.preferredLanguages) && itemProfile.preferredLanguages.length > 0 && (
+                                  <p><strong>Preferred Languages:</strong> {itemProfile.preferredLanguages.join(", ")}</p>
+                                )}
+                                {typeof itemProfile.experienceLevel === "string" && itemProfile.experienceLevel.trim().length > 0 && (
+                                  <p style={{ textTransform: "capitalize" }}><strong>Experience Level:</strong> {itemProfile.experienceLevel}</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
