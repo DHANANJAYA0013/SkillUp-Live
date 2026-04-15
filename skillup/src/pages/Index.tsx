@@ -171,11 +171,11 @@ const Index = () => {
           </div>
         </section>
 
-        <section className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-20 text-center">
+        {/* <section className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-20 text-center">
           <Link to="/landing" className="text-sm font-medium text-primary hover:underline">
             Explore the platform first &rarr;
           </Link>
-        </section>
+        </section> */}
       </main>
     </div>
   );
