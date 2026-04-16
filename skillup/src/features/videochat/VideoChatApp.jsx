@@ -457,10 +457,15 @@ export default function VideoChatApp({ presetRoomId = "" }) {
     navigate("/landing");
   }, [navigate]);
 
+  const handleLeaveRoom = useCallback(() => {
+    setSession(null);
+    navigate("/sessions", { replace: true });
+  }, [navigate]);
+
   return (
     <div className="videochat-shell">
       {session ? (
-        <Room userName={session.name} roomId={session.room} onLeave={() => setSession(null)} onBack={handleBack} />
+        <Room userName={session.name} roomId={session.room} onLeave={handleLeaveRoom} onBack={handleBack} />
       ) : (
         <Lobby onJoin={(name, room) => setSession({ name, room })} onBack={handleBack} />
       )}

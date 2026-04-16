@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useState } from "react";
-import { Search, Bell, Menu, X, BookOpen, Video } from "lucide-react";
+import { Menu, X, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -14,7 +14,6 @@ const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const isProfile = location.pathname.startsWith("/profile");
-  const isNotifications = location.pathname.startsWith("/notifications");
 
   const handleBrandClick = () => {
     setMobileOpen(false);
@@ -52,35 +51,6 @@ const Navbar = () => {
 
           {/* Right side */}
           <div className="hidden md:flex items-center gap-3">
-            <Link to="/start-live">
-              <Button 
-                size="sm" 
-                className="gradient-primary text-primary-foreground border-0 hover:opacity-90 flex items-center gap-2"
-              >
-                <Video className="w-4 h-4" />
-                Start Live
-              </Button>
-            </Link>
-            <div className="relative">
-              {/* <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search skills, mentors..."
-                className="pl-9 pr-4 py-2 text-sm rounded-lg bg-muted border-none outline-none focus:ring-2 focus:ring-primary/20 w-56 text-foreground placeholder:text-muted-foreground"
-              /> */}
-            </div>
-            <Link
-              to="/notifications"
-              className={`relative p-2 rounded-lg transition-colors ${
-                isNotifications
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
-              }`}
-              aria-label="Notifications"
-            >
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-accent" />
-            </Link>
             <Link to="/profile" className="flex items-center" aria-label="Profile">
               <Avatar
                 className={`h-10 w-10 border ${isProfile ? "border-primary ring-2 ring-primary/30" : "border-transparent"}`}
@@ -104,15 +74,6 @@ const Navbar = () => {
       {/* Mobile menu */}
       {mobileOpen && (
         <div className="md:hidden border-t border-border bg-card px-3 sm:px-4 py-4 space-y-2 max-h-[calc(100vh-4rem)] overflow-y-auto">
-          <Link to="/start-live" onClick={() => setMobileOpen(false)}>
-            <Button 
-              size="sm" 
-              className="w-full gradient-primary text-primary-foreground border-0 hover:opacity-90 flex items-center justify-center gap-2 mb-2"
-            >
-              <Video className="w-4 h-4" />
-              Start Live
-            </Button>
-          </Link>
           {navLinks.map((link) => (
             <Link
               key={link.path}
@@ -127,22 +88,6 @@ const Navbar = () => {
               {link.label}
             </Link>
           ))}
-          <Link
-            to="/notifications"
-            onClick={() => setMobileOpen(false)}
-            className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium ${
-              isNotifications ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
-            }`}
-          >
-            <div className="relative p-2 rounded-lg bg-muted">
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-accent" />
-            </div>
-            <div className="flex flex-col">
-              <span>Notifications</span>
-              <span className="text-xs text-muted-foreground">Session updates</span>
-            </div>
-          </Link>
           <Link
             to="/profile"
             onClick={() => setMobileOpen(false)}

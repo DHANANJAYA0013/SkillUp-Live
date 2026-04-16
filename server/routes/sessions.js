@@ -1,8 +1,25 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const Session = require("../models/Session");
 const { verifyToken, requireRole } = require("../middleware/auth");
 
 const router = express.Router();
+
+const findSessionByIdOrRoomId = async (identifier) => {
+  if (!identifier) return null;
+
+  let session = null;
+
+  if (mongoose.Types.ObjectId.isValid(identifier)) {
+    session = await Session.findById(identifier);
+  }
+
+  if (!session) {
+    session = await Session.findOne({ roomId: identifier });
+  }
+
+  return session;
+};
 
 router.get("/", async (_req, res) => {
   try {
@@ -88,11 +105,15 @@ router.post("/", verifyToken, requireRole("mentor"), async (req, res) => {
 
 router.patch("/:id/start-live", verifyToken, requireRole("mentor"), async (req, res) => {
   try {
-    const session = await Session.findById(req.params.id);
+    const session = await findSessionByIdOrRoomId(req.params.id);
     if (!session) return res.status(404).json({ error: "Session not found" });
 
     if (String(session.mentor) !== String(req.user._id)) {
       return res.status(403).json({ error: "Only the session mentor can start this session" });
+    }
+
+    if ((session.mentorEmail || "").trim().toLowerCase() !== (req.user.email || "").trim().toLowerCase()) {
+      return res.status(403).json({ error: "Only the mentor who created this session can start it" });
     }
 
     if (session.status === "completed") {
@@ -114,18 +135,23 @@ router.patch("/:id/start-live", verifyToken, requireRole("mentor"), async (req, 
         roomId: session.roomId,
       },
     });
-  } catch {
+  } catch (err) {
+    console.error("[Start Session]", err.message);
     return res.status(400).json({ error: "Invalid session id" });
   }
 });
 
 router.patch("/:id/complete", verifyToken, requireRole("mentor"), async (req, res) => {
   try {
-    const session = await Session.findById(req.params.id);
+    const session = await findSessionByIdOrRoomId(req.params.id);
     if (!session) return res.status(404).json({ error: "Session not found" });
 
     if (String(session.mentor) !== String(req.user._id)) {
       return res.status(403).json({ error: "Only the session mentor can complete this session" });
+    }
+
+    if ((session.mentorEmail || "").trim().toLowerCase() !== (req.user.email || "").trim().toLowerCase()) {
+      return res.status(403).json({ error: "Only the mentor who created this session can complete it" });
     }
 
     session.status = "completed";
@@ -138,7 +164,8 @@ router.patch("/:id/complete", verifyToken, requireRole("mentor"), async (req, re
         status: session.status,
       },
     });
-  } catch {
+  } catch (err) {
+    console.error("[Complete Session]", err.message);
     return res.status(400).json({ error: "Invalid session id" });
   }
 });

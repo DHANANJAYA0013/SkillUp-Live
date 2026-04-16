@@ -241,7 +241,12 @@ const SessionsPage = () => {
 
       toast({ title: "Session is live", description: "Status updated to live." });
       await refreshSessions();
-      navigate(`/room/${roomId}?name=${encodeURIComponent(authUser?.name || "Mentor")}`);
+      navigate(
+        `/start-live?message=Connecting%20to%20live%20session&next=${encodeURIComponent(
+          `/room/${roomId}?name=${encodeURIComponent(authUser?.name || "Mentor")}`
+        )}`,
+        { replace: true }
+      );
     } catch (error) {
       toast({ title: "Action failed", description: error instanceof Error ? error.message : "Try again.", variant: "destructive" });
     } finally {
@@ -276,7 +281,13 @@ const SessionsPage = () => {
   };
 
   const sessionCard = (session: DbSession) => {
-    const isOwnerMentor = authUser?.role === "mentor" && authUser?._id === session.mentorId;
+    const authEmail = authUser?.email?.trim().toLowerCase() || "";
+    const sessionEmail = session.mentorEmail?.trim().toLowerCase() || "";
+    const isOwnerMentor =
+      authUser?.role === "mentor" &&
+      authUser?._id === session.mentorId &&
+      Boolean(authEmail) &&
+      authEmail === sessionEmail;
     const isLearner = authUser?.role === "learner";
     const isLive = session.status === "live";
     const isScheduled = session.status === "scheduled";
@@ -323,13 +334,31 @@ const SessionsPage = () => {
           )}
 
           {isLearner && isLive && (
-            <Button className="w-full gap-2" onClick={() => navigate(`/room/${session.roomId}?name=${encodeURIComponent(authUser?.name || "Learner")}`)}>
+            <Button
+              className="w-full gap-2"
+              onClick={() =>
+                navigate(
+                  `/start-live?message=Joining%20live%20session&next=${encodeURIComponent(
+                    `/room/${session.roomId}?name=${encodeURIComponent(authUser?.name || "Learner")}`
+                  )}`,
+                  { replace: true }
+                )
+              }
+            >
               <DoorOpen className="w-4 h-4" /> Join Live Session
             </Button>
           )}
 
           {!isOwnerMentor && !isLearner && isLive && (
-            <Button className="w-full gap-2" onClick={() => navigate(`/room/${session.roomId}?name=Guest`)}>
+            <Button
+              className="w-full gap-2"
+              onClick={() =>
+                navigate(
+                  `/start-live?message=Joining%20live%20session&next=${encodeURIComponent(`/room/${session.roomId}?name=Guest`)}`,
+                  { replace: true }
+                )
+              }
+            >
               <DoorOpen className="w-4 h-4" /> Join Live Session
             </Button>
           )}
