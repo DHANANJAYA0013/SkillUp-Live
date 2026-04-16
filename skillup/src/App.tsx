@@ -12,7 +12,7 @@ import MentorsPage from "./pages/MentorsPage";
 import MentorProfilePage from "./pages/MentorProfilePage";
 import SkillsPage from "./pages/SkillsPage";
 import DashboardPage from "./pages/DashboardPage";
-import TeacherDashboardPage from "./pages/TeacherDashboardPage";
+import MentorDashboardPage from "./pages/MentorDashboardPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AdminLoginPage from "./pages/AdminLoginPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -29,7 +29,7 @@ import AuthLoginPage from "./features/authsystem/pages/AuthLoginPage";
 import AuthGithubCallbackPage from "./features/authsystem/pages/AuthGithubCallbackPage";
 import AuthRolePage from "./features/authsystem/pages/AuthRolePage";
 import AuthLearnerProfilePage from "./features/authsystem/pages/AuthLearnerProfilePage";
-import AuthTeacherProfilePage from "./features/authsystem/pages/AuthTeacherProfilePage";
+import AuthMentorProfilePage from "./features/authsystem/pages/AuthMentorProfilePage";
 import AuthHomePage from "./features/authsystem/pages/AuthHomePage";
 
 const queryClient = new QueryClient();
@@ -55,7 +55,7 @@ const App = () => (
               <Route path="/mentors/:id" element={<MentorProfilePage />} />
               <Route path="/skills" element={<SkillsPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/teacher-dashboard" element={<TeacherDashboardPage />} />
+              <Route path="/mentor-dashboard" element={<MentorDashboardPage />} />
               <Route path="/admin-login" element={<AdminLoginPage />} />
               <Route
                 path="/admin-dashboard"
@@ -69,7 +69,7 @@ const App = () => (
               {/* <Route path="/authsystem" element={<AuthLoginPage />} /> */}
               <Route path="/authsystem/onboard" element={<Navigate to="/auth/onboard" replace />} />
               <Route path="/authsystem/onboard/learner" element={<Navigate to="/auth/onboard/learner" replace />} />
-              <Route path="/authsystem/onboard/teacher" element={<Navigate to="/auth/onboard/teacher" replace />} />
+              <Route path="/authsystem/onboard/mentor" element={<Navigate to="/auth/onboard/mentor" replace />} />
               <Route path="/authsystem/home" element={<Navigate to="/landing" replace />} />
               <Route path="/auth/github-callback" element={<AuthGithubCallbackPage />} />
               <Route
@@ -89,10 +89,10 @@ const App = () => (
                 }
               />
               <Route
-                path="/auth/onboard/teacher"
+                path="/auth/onboard/mentor"
                 element={
                   <AuthGuard>
-                    <AuthTeacherProfilePage />
+                    <AuthMentorProfilePage />
                   </AuthGuard>
                 }
               />

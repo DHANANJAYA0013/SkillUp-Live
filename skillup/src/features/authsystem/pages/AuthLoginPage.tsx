@@ -214,7 +214,7 @@ export default function AuthLoginPage() {
               </div>
 
               {/* <CardDescription className="max-w-lg text-sm sm:text-base leading-6">
-                Use Google or GitHub to sign up in seconds. Your profile will guide you into the learner or teacher onboarding flow automatically.
+                Use Google or GitHub to sign up in seconds. Your profile will guide you into the learner or mentor onboarding flow automatically.
               </CardDescription> */}
 
               <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:gap-2 sm:pb-0">

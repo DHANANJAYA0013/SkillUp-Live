@@ -1,4 +1,4 @@
-export type UserRole = "learner" | "teacher" | null;
+export type UserRole = "learner" | "mentor" | null;
 
 export interface LearnerProfile {
   learningInterests: string[];
@@ -6,7 +6,7 @@ export interface LearnerProfile {
   experienceLevel: "" | "beginner" | "intermediate" | "advanced";
 }
 
-export interface TeacherProfile {
+export interface MentorProfile {
   skills: string[];
   yearsOfExperience: number | null;
   bio: string;
@@ -23,6 +23,6 @@ export interface AuthUser {
   avatar?: string | null;
   role: UserRole;
   profileCompleted: boolean;
-  profile?: Partial<LearnerProfile & TeacherProfile>;
+  profile?: Partial<LearnerProfile & MentorProfile>;
   createdAt?: string;
 }

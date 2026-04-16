@@ -5,14 +5,14 @@ import { Badge } from "@/components/ui/badge";
 import Navbar from "@/components/Navbar";
 import { skills, sessions, reviews } from "@/data/mockData";
 
-const teacherStats = [
+const mentorStats = [
   { label: "Total Earnings", value: "₹4,250", icon: DollarSign, color: "bg-secondary/10 text-secondary" },
   { label: "Total Students", value: "48", icon: Users, color: "bg-primary/10 text-primary" },
   { label: "Active Skills", value: "6", icon: BookOpen, color: "bg-accent/10 text-accent" },
   { label: "Avg Rating", value: "4.8", icon: Star, color: "bg-accent/10 text-accent" },
 ];
 
-const TeacherDashboardPage = () => {
+const MentorDashboardPage = () => {
   const [activeTab, setActiveTab] = useState<"skills" | "bookings" | "earnings">("skills");
 
   return (
@@ -21,7 +21,7 @@ const TeacherDashboardPage = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-8">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Teacher Dashboard</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Mentor Dashboard</h1>
             <p className="text-muted-foreground mt-1">Manage your skills, bookings, and earnings</p>
           </div>
           <Button className="gradient-primary text-primary-foreground border-0 gap-2 w-full sm:w-auto">
@@ -31,7 +31,7 @@ const TeacherDashboardPage = () => {
 
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-          {teacherStats.map((stat) => (
+          {mentorStats.map((stat) => (
             <div key={stat.label} className="bg-card rounded-xl shadow-card border border-border/50 p-5">
               <div className={`w-10 h-10 rounded-lg ${stat.color} flex items-center justify-center mb-3`}>
                 <stat.icon className="w-5 h-5" />
@@ -148,4 +148,4 @@ const TeacherDashboardPage = () => {
   );
 };
 
-export default TeacherDashboardPage;
+export default MentorDashboardPage;

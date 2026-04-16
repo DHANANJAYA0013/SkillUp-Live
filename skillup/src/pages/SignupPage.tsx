@@ -9,7 +9,7 @@ import signupBackground from "@/Assets/background_signup.webp";
 
 const SignupPage = () => {
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState<"learner" | "teacher">("learner");
+  const [role, setRole] = useState<"learner" | "mentor">("learner");
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_#f3f7ff,_transparent_45%),radial-gradient(circle_at_bottom,_#f9fbff,_transparent_40%)]">
@@ -74,8 +74,8 @@ const SignupPage = () => {
                   I want to Learn
                 </button>
                 <button
-                  onClick={() => setRole("teacher")}
-                  className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${role === "teacher" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
+                  onClick={() => setRole("mentor")}
+                  className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${role === "mentor" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
                 >
                   I want to Teach
                 </button>

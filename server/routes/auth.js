@@ -141,7 +141,7 @@ router.put("/complete-profile", verifyToken, async (req, res) => {
       experienceLevel: typeof payload.experienceLevel === "string" ? payload.experienceLevel.trim() : "",
     };
 
-    const teacherProfile = {
+    const mentorProfile = {
       skills: toTrimmedArray(payload.skills),
       yearsOfExperience:
         payload.yearsOfExperience === "" || payload.yearsOfExperience === null || payload.yearsOfExperience === undefined
@@ -152,24 +152,28 @@ router.put("/complete-profile", verifyToken, async (req, res) => {
       portfolioLinks: toTrimmedArray(payload.portfolioLinks),
     };
 
-    if (!["learner", "teacher"].includes(role)) {
-      return res.status(400).json({ error: "role must be learner or teacher" });
+    if (!["learner", "mentor"].includes(role)) {
+      return res.status(400).json({ error: "role must be learner or mentor" });
+    }
+
+    if (req.user.role && req.user.role !== role) {
+      return res.status(400).json({ error: "Role is already set and cannot be changed" });
     }
 
     if (role === "learner" && (!learnerProfile.learningInterests.length || !learnerProfile.experienceLevel)) {
       return res.status(400).json({ error: "Learners must provide learningInterests and experienceLevel" });
     }
 
-    if (role === "teacher" && (!teacherProfile.skills.length || !teacherProfile.bio)) {
-      return res.status(400).json({ error: "Teachers must provide skills and bio" });
+    if (role === "mentor" && (!mentorProfile.skills.length || !mentorProfile.bio)) {
+      return res.status(400).json({ error: "Mentors must provide skills and bio" });
     }
 
-    if (role === "teacher" && teacherProfile.yearsOfExperience !== null && Number.isNaN(teacherProfile.yearsOfExperience)) {
+    if (role === "mentor" && mentorProfile.yearsOfExperience !== null && Number.isNaN(mentorProfile.yearsOfExperience)) {
       return res.status(400).json({ error: "yearsOfExperience must be a valid number" });
     }
 
     req.user.role = role;
-    req.user.profile = role === "learner" ? learnerProfile : teacherProfile;
+    req.user.profile = role === "learner" ? learnerProfile : mentorProfile;
     req.user.profileCompleted = true;
     await req.user.save();
 
@@ -183,7 +187,7 @@ router.put("/complete-profile", verifyToken, async (req, res) => {
 router.get("/users", verifyToken, async (req, res) => {
   try {
     const filter = {};
-    if (["learner", "teacher"].includes(req.query.role)) filter.role = req.query.role;
+    if (["learner", "mentor"].includes(req.query.role)) filter.role = req.query.role;
     if (req.query.profileCompleted === "true") filter.profileCompleted = true;
     if (req.query.profileCompleted === "false") filter.profileCompleted = false;
 

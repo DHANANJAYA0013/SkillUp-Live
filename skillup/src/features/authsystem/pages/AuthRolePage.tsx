@@ -8,7 +8,7 @@ import { useAuth } from "../AuthContext";
 export default function AuthRolePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [role, setRole] = useState<"learner" | "teacher" | "">("");
+  const [role, setRole] = useState<"learner" | "mentor" | "">("");
 
   if (!user) return null;
 
@@ -22,8 +22,8 @@ export default function AuthRolePage() {
       accent: "from-sky-500/20 to-cyan-500/10",
     },
     {
-      value: "teacher" as const,
-      title: "Teacher",
+      value: "mentor" as const,
+      title: "Mentor",
       subtitle: "Share expertise and mentor the next generation.",
       icon: BookOpen,
       points: ["Create profile", "Mentor learners", "Grow your impact"],
@@ -105,7 +105,7 @@ export default function AuthRolePage() {
           </Button>
 
           <p className="text-center text-xs text-muted-foreground">
-            You can update this later from your profile settings.
+            You can refine your profile details later from your profile settings.
           </p>
         </CardContent>
         </Card>

@@ -77,7 +77,7 @@ const SigninPage = () => {
                 </label>
                 <a href="#" className="text-sm text-primary hover:underline">Forgot password?</a>
               </div><br />
-              <Link to="/teacher-dashboard">
+              <Link to="/mentor-dashboard">
                 <Button type="submit" className="w-full gradient-primary text-primary-foreground border-0 shadow-md hover:opacity-90">
                   Sign in
                 </Button>

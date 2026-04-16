@@ -186,13 +186,15 @@ io.on("connection", (socket) => {
 });
 
 const PORT = process.env.PORT || 4000;
+const mongoUri = process.env.MONGODB_URI || "mongodb://localhost:27017/skillup";
+const mongoDbName = "skillup";
 
 mongoose
-  .connect(process.env.MONGODB_URI || "mongodb://localhost:27017/skillup", {
-    dbName: process.env.MONGODB_DB || "skillup",
+  .connect(mongoUri, {
+    dbName: mongoDbName,
   })
   .then(() => {
-    console.log("MongoDB connected");
+    console.log(`MongoDB connected (db: ${mongoose.connection.name})`);
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });

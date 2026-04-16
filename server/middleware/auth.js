@@ -12,6 +12,11 @@ const verifyToken = async (req, res, next) => {
     const user = await User.findById(decoded.id).select("-__v");
     if (!user) return res.status(401).json({ error: "User not found" });
 
+    if (user.role && !["learner", "mentor"].includes(user.role)) {
+      user.role = "mentor";
+      await user.save();
+    }
+
     req.user = user;
     next();
   } catch {

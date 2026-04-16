@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, BadgeCheck, BookOpen, Briefcase, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { API_BASE } from "../config";
 
 const splitList = (value: string) => value.split(",").map((v) => v.trim()).filter(Boolean);
 
-export default function AuthTeacherProfilePage() {
+export default function AuthMentorProfilePage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { token, updateUser } = useAuth();
@@ -48,11 +48,11 @@ export default function AuthTeacherProfilePage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ role: "teacher", profile: payload }),
+        body: JSON.stringify({ role: "mentor", profile: payload }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save teacher profile");
+      if (!res.ok) throw new Error(data.error || "Failed to save mentor profile");
 
       updateUser(data.user);
       navigate("/landing", { replace: true });
@@ -78,10 +78,10 @@ export default function AuthTeacherProfilePage() {
           <CardHeader className="space-y-4 pb-5 sm:space-y-5 sm:pb-6">
             <div className="inline-flex w-fit items-center gap-2 rounded-full border border-indigo-500/25 bg-indigo-500/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-700 dark:text-indigo-300">
               <Sparkles className="h-3.5 w-3.5" />
-              Teacher onboarding
+              Mentor onboarding
             </div>
             <div className="space-y-2">
-              <CardTitle className="text-2xl sm:text-3xl">Create your teacher profile</CardTitle>
+              <CardTitle className="text-2xl sm:text-3xl">Create your mentor profile</CardTitle>
               <CardDescription className="text-sm sm:text-base">
                 Showcase your expertise so learners can discover your profile and book sessions with confidence.
               </CardDescription>
