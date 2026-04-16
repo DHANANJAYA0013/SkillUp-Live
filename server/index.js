@@ -5,6 +5,7 @@ const { Server } = require("socket.io");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const { router: authRouter } = require("./routes/auth");
+const { router: sessionsRouter } = require("./routes/sessions");
 
 const app = express();
 
@@ -26,6 +27,15 @@ app.use(
 );
 app.use(express.json());
 app.use("/api/auth", authRouter);
+app.use("/api/sessions", sessionsRouter);
+
+app.use((err, _req, res, next) => {
+  if (!err) return next();
+  if (typeof err.message === "string" && err.message.startsWith("CORS blocked origin:")) {
+    return res.status(403).json({ error: err.message });
+  }
+  return next(err);
+});
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -82,6 +92,10 @@ app.get("/api/health", (_req, res) => {
 
 app.get("/room/:id", (req, res) => {
   res.json({ users: getRoomUsers(req.params.id) });
+});
+
+app.use("/api", (_req, res) => {
+  res.status(404).json({ error: "API route not found" });
 });
 
 io.on("connection", (socket) => {

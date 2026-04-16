@@ -1,7 +1,17 @@
 import { Star } from "lucide-react";
 import { Link } from "react-router-dom";
-import type { Mentor } from "@/data/mockData";
 import { Badge } from "@/components/ui/badge";
+
+interface Mentor {
+  id: string;
+  name: string;
+  avatar: string;
+  title: string;
+  skills: string[];
+  rating: number;
+  reviewCount: number;
+  pricePerSession: number;
+}
 
 interface MentorCardProps {
   mentor: Mentor;

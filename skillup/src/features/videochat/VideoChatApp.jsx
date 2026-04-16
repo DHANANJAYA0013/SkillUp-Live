@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { usePeerConnections } from "./usePeerConnections";
 import VideoTile from "./VideoTile";
 import ChatPanel from "./ChatPanel";
@@ -437,9 +437,17 @@ function Room({ userName, roomId, onLeave, onBack }) {
   );
 }
 
-export default function VideoChatApp() {
+export default function VideoChatApp({ presetRoomId = "" }) {
   const [session, setSession] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (!presetRoomId || session) return;
+    const params = new URLSearchParams(location.search);
+    const defaultName = params.get("name") || "Guest";
+    setSession({ name: defaultName, room: presetRoomId });
+  }, [presetRoomId, session, location.search]);
 
   const handleBack = useCallback(() => {
     if (window.history.length > 1) {

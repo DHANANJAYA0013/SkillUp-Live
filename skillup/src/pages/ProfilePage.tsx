@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Navbar from "@/components/Navbar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,12 +9,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import Particles, { initParticlesEngine } from "@tsparticles/react";
 import { loadSlim } from "@tsparticles/slim";
+import { ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/features/authsystem/AuthContext";
 import { API_BASE } from "@/features/authsystem/config";
 import type { UserRole } from "@/features/authsystem/types";
 
 const splitList = (value: string) => value.split(",").map((v) => v.trim()).filter(Boolean);
+
+const parseApiResponse = async (res: Response) => {
+  const raw = await res.text();
+  try {
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return raw;
+  }
+};
 
 const particlesOptions = {
   background: {
@@ -118,6 +127,12 @@ const ProfilePage = () => {
   const [certifications, setCertifications] = useState(initial.certifications);
   const [portfolioLinks, setPortfolioLinks] = useState(initial.portfolioLinks);
   const [saving, setSaving] = useState(false);
+  const [sessionTitle, setSessionTitle] = useState("");
+  const [sessionDescription, setSessionDescription] = useState("");
+  const [sessionDateTime, setSessionDateTime] = useState("");
+  const [sessionDuration, setSessionDuration] = useState("");
+  const [sessionTopic, setSessionTopic] = useState("");
+  const [creatingSession, setCreatingSession] = useState(false);
 
   useEffect(() => {
     initParticlesEngine(async (engine) => {
@@ -216,10 +231,22 @@ const ProfilePage = () => {
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save profile");
+      const data = await parseApiResponse(res);
+      if (!res.ok) {
+        const message =
+          data && typeof data === "object" && "error" in data
+            ? String((data as { error: unknown }).error)
+            : typeof data === "string" && data.trim()
+              ? data
+              : "Failed to save profile";
+        throw new Error(message);
+      }
 
-      updateUser(data.user);
+      if (!data || typeof data !== "object" || !("user" in data)) {
+        throw new Error("Invalid response from server while saving profile");
+      }
+
+      updateUser((data as { user: typeof authUser }).user);
       toast({ title: "Profile updated", description: "Your details were saved to database." });
     } catch (error) {
       toast({
@@ -237,10 +264,89 @@ const ProfilePage = () => {
     navigate("/", { replace: true });
   };
 
+  const handleCreateSession = async () => {
+    if (!token) {
+      toast({ title: "Not signed in", description: "Sign in to create sessions.", variant: "destructive" });
+      return;
+    }
+
+    if (authUser?.role !== "mentor") {
+      toast({ title: "Access denied", description: "Only mentors can create sessions.", variant: "destructive" });
+      return;
+    }
+
+    const normalizedTitle = sessionTitle.trim();
+    const normalizedDescription = sessionDescription.trim();
+    const normalizedTopic = sessionTopic.trim();
+    const durationValue = Number(sessionDuration);
+
+    if (!normalizedTitle || !normalizedDescription || !sessionDateTime || !normalizedTopic || !Number.isFinite(durationValue) || durationValue <= 0) {
+      toast({
+        title: "Missing fields",
+        description: "Provide title, description, date & time, duration, and topic.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCreatingSession(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/sessions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: normalizedTitle,
+          description: normalizedDescription,
+          dateTime: new Date(sessionDateTime).toISOString(),
+          date: sessionDateTime.split("T")[0] || "",
+          startTime: sessionDateTime.split("T")[1] || "",
+          duration: durationValue,
+          topic: normalizedTopic,
+        }),
+      });
+
+      const data = await parseApiResponse(res);
+      if (!res.ok) {
+        const message =
+          data && typeof data === "object" && "error" in data
+            ? String((data as { error: unknown }).error)
+            : typeof data === "string" && data.trim()
+              ? data
+              : "Failed to create session";
+        throw new Error(message);
+      }
+
+      setSessionTitle("");
+      setSessionDescription("");
+      setSessionDateTime("");
+      setSessionDuration("");
+      setSessionTopic("");
+
+      toast({
+        title: "Session created",
+        description: "Your session was saved in the sessions collection.",
+      });
+    } catch (error) {
+      toast({
+        title: "Creation failed",
+        description: error instanceof Error ? error.message : "Try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingSession(false);
+    }
+  };
+
   const displayName = authUser?.name || "Dhananjaya";
   const displayEmail = authUser?.email || "dhananjaya@skillbridge.io";
   const displayAvatar = authUser?.avatar || "https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=400&q=80";
   const roleLabel = selectedRole === "mentor" ? "mentor" : "learner";
+  const followersCount = Array.isArray(authUser?.followers) ? authUser.followers.length : 0;
+  const followingCount = Array.isArray(authUser?.following) ? authUser.following.length : 0;
 
   if (!authUser) {
     return (
@@ -257,12 +363,15 @@ const ProfilePage = () => {
       </div>
 
       <div className="relative z-10">
-        <Navbar />
-
         <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8">
         <div>
+          <Button variant="ghost" size="sm" className="mb-4" onClick={() => navigate("/landing")}> 
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back 
+          </Button>
+        </div>
+        <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Profile</h1>
-          <p className="text-muted-foreground mt-1">Edit your role-based profile details and sync them to your users collection.</p>
+          {/* <p className="text-muted-foreground mt-1">Edit your role-based profile details and sync them to your users collection.</p> */}
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
@@ -277,9 +386,26 @@ const ProfilePage = () => {
               </Avatar>
               <div className="space-y-1">
                 <h2 className="text-xl font-semibold text-foreground">{displayName}</h2>
-                <p className="text-sm text-muted-foreground" style={{ textTransform: "capitalize" }}>{roleLabel} · Bengaluru, IN</p>
+                <p className="text-sm text-muted-foreground" style={{ textTransform: "capitalize" }}>{roleLabel}</p>
                 <p className="text-sm text-muted-foreground">{displayEmail}</p>
               </div>
+              {authUser.role === "mentor" ? (
+                <div className="w-full grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-border/60 bg-muted/30 py-2">
+                    <p className="text-xs text-muted-foreground">Followers</p>
+                    <p className="text-lg font-semibold text-foreground">{followersCount}</p>
+                  </div>
+                  <div className="rounded-lg border border-border/60 bg-muted/30 py-2">
+                    <p className="text-xs text-muted-foreground">Following</p>
+                    <p className="text-lg font-semibold text-foreground">{followingCount}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full rounded-lg border border-border/60 bg-muted/30 py-2">
+                  <p className="text-xs text-muted-foreground">Following</p>
+                  <p className="text-lg font-semibold text-foreground">{followingCount}</p>
+                </div>
+              )}
               <Button variant="outline" className="mt-2 w-full max-w-[180px]" onClick={handleSignout}>Sign out</Button>
             </CardContent>
           </Card>
@@ -288,8 +414,8 @@ const ProfilePage = () => {
             <Card className="shadow-card">
               <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-0 gap-3 pb-4">
                 <div>
-                  <CardTitle className="text-xl">Role-based profile</CardTitle>
-                  <CardDescription>Choose role and edit profile details from database.</CardDescription>
+                  <CardTitle className="text-xl" style={{ textTransform: "capitalize" }}>{roleLabel}  </CardTitle>
+                  <CardDescription>Edit profile details from database.</CardDescription>
                 </div>
                 <Button size="sm" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save changes"}</Button>
               </CardHeader>
@@ -415,24 +541,76 @@ const ProfilePage = () => {
               </CardContent>
             </Card>
 
-            <Card className="shadow-card">
-              <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-0 gap-3 pb-4">
-                <div>
-                  <CardTitle className="text-lg">Quick actions</CardTitle>
-                  <CardDescription>Manage session and save profile changes.</CardDescription>
-                </div>
-                <Button size="sm" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save now"}</Button>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-wrap gap-3">
-                  <Button variant="outline" onClick={handleSignout}>Sign out</Button>
-                  <Button variant="outline" onClick={() => navigate("/landing")}>Back to landing</Button>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Role-specific details are loaded from the users collection and saved through the authenticated profile API.
-                </p>
-              </CardContent>
-            </Card>
+            {authUser.role === "mentor" && (
+              <Card className="shadow-card">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg">Schedule Session</CardTitle>
+                  <CardDescription>Create a new mentoring session in the sessions collection.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="sessionTitle">Title</Label>
+                      <Input
+                        id="sessionTitle"
+                        value={sessionTitle}
+                        onChange={(e) => setSessionTitle(e.target.value)}
+                        placeholder="Frontend Interview Preparation"
+                        className="bg-card"
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="sessionDescription">Description</Label>
+                      <Textarea
+                        id="sessionDescription"
+                        rows={4}
+                        value={sessionDescription}
+                        onChange={(e) => setSessionDescription(e.target.value)}
+                        placeholder="What this session will cover."
+                        className="bg-card"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="sessionDateTime">Date & Time</Label>
+                      <Input
+                        id="sessionDateTime"
+                        type="datetime-local"
+                        value={sessionDateTime}
+                        onChange={(e) => setSessionDateTime(e.target.value)}
+                        className="bg-card"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="sessionDuration">Duration (minutes)</Label>
+                      <Input
+                        id="sessionDuration"
+                        type="number"
+                        min="1"
+                        value={sessionDuration}
+                        onChange={(e) => setSessionDuration(e.target.value)}
+                        placeholder="60"
+                        className="bg-card"
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="sessionTopic">Topic</Label>
+                      <Input
+                        id="sessionTopic"
+                        value={sessionTopic}
+                        onChange={(e) => setSessionTopic(e.target.value)}
+                        placeholder="React, Node.js, System Design"
+                        className="bg-card"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Button onClick={handleCreateSession} disabled={creatingSession}>
+                        {creatingSession ? "Creating..." : "Create session"}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
         </main>

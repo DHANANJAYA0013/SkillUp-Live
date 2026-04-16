@@ -127,6 +127,121 @@ router.get("/me", verifyToken, (req, res) => {
   res.json({ user: req.user });
 });
 
+router.get("/mentors", async (_req, res) => {
+  try {
+    const mentors = await User.find({ role: "mentor" })
+      .select("name email avatar profile.skills profile.bio followers")
+      .sort({ createdAt: -1 });
+
+    const normalizedMentors = mentors.map((mentor) => ({
+      _id: mentor._id,
+      name: mentor.name,
+      email: mentor.email,
+      avatar: mentor.avatar,
+      skills: Array.isArray(mentor.profile?.skills) ? mentor.profile.skills : [],
+      bio: typeof mentor.profile?.bio === "string" ? mentor.profile.bio : "",
+      followersCount: Array.isArray(mentor.followers) ? mentor.followers.length : 0,
+    }));
+
+    res.json({ count: normalizedMentors.length, mentors: normalizedMentors });
+  } catch (err) {
+    console.error("[Get Mentors]", err.message);
+    res.status(500).json({ error: "Failed to fetch mentors" });
+  }
+});
+
+router.get("/mentors/:id", async (req, res) => {
+  try {
+    const mentor = await User.findOne({ _id: req.params.id, role: "mentor" })
+      .select("name email avatar profile.skills profile.bio followers");
+
+    if (!mentor) {
+      return res.status(404).json({ error: "Mentor not found" });
+    }
+
+    const normalizedMentor = {
+      _id: mentor._id,
+      name: mentor.name,
+      email: mentor.email,
+      avatar: mentor.avatar,
+      skills: Array.isArray(mentor.profile?.skills) ? mentor.profile.skills : [],
+      bio: typeof mentor.profile?.bio === "string" ? mentor.profile.bio : "",
+      followersCount: Array.isArray(mentor.followers) ? mentor.followers.length : 0,
+    };
+
+    return res.json({ mentor: normalizedMentor });
+  } catch {
+    return res.status(400).json({ error: "Invalid mentor id" });
+  }
+});
+
+router.get("/mentors/:id/follow-state", verifyToken, async (req, res) => {
+  try {
+    const mentor = await User.findOne({ _id: req.params.id, role: "mentor" }).select("_id followers");
+    if (!mentor) return res.status(404).json({ error: "Mentor not found" });
+
+    const isFollowing = Array.isArray(req.user.following)
+      && req.user.following.some((followedId) => String(followedId) === String(mentor._id));
+
+    return res.json({
+      isFollowing,
+      followersCount: Array.isArray(mentor.followers) ? mentor.followers.length : 0,
+    });
+  } catch {
+    return res.status(400).json({ error: "Invalid mentor id" });
+  }
+});
+
+router.post("/mentors/:id/follow", verifyToken, async (req, res) => {
+  try {
+    if (!["learner", "mentor"].includes(req.user.role || "")) {
+      return res.status(403).json({ error: "Only learners or mentors can follow mentors" });
+    }
+
+    const mentor = await User.findOne({ _id: req.params.id, role: "mentor" }).select("_id followers");
+    if (!mentor) return res.status(404).json({ error: "Mentor not found" });
+
+    if (String(req.user._id) === String(mentor._id)) {
+      return res.status(400).json({ error: "You cannot follow yourself" });
+    }
+
+    await Promise.all([
+      User.updateOne({ _id: req.user._id }, { $addToSet: { following: mentor._id } }),
+      User.updateOne({ _id: mentor._id }, { $addToSet: { followers: req.user._id } }),
+    ]);
+
+    const updatedMentor = await User.findById(mentor._id).select("followers");
+
+    return res.json({
+      isFollowing: true,
+      followersCount: Array.isArray(updatedMentor?.followers) ? updatedMentor.followers.length : 0,
+    });
+  } catch {
+    return res.status(400).json({ error: "Invalid mentor id" });
+  }
+});
+
+router.delete("/mentors/:id/follow", verifyToken, async (req, res) => {
+  try {
+    const mentor = await User.findOne({ _id: req.params.id, role: "mentor" }).select("_id followers");
+    if (!mentor) return res.status(404).json({ error: "Mentor not found" });
+
+    await Promise.all([
+      User.updateOne({ _id: req.user._id }, { $pull: { following: mentor._id } }),
+      User.updateOne({ _id: mentor._id }, { $pull: { followers: req.user._id } }),
+    ]);
+
+    const updatedMentor = await User.findById(mentor._id).select("followers");
+
+    return res.json({
+      isFollowing: false,
+      followersCount: Array.isArray(updatedMentor?.followers) ? updatedMentor.followers.length : 0,
+    });
+  } catch {
+    return res.status(400).json({ error: "Invalid mentor id" });
+  }
+});
+
 router.put("/complete-profile", verifyToken, async (req, res) => {
   try {
     const { role, profile } = req.body;

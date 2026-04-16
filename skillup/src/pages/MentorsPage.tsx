@@ -8,12 +8,46 @@ import type { ISourceOptions } from "@tsparticles/engine";
 import MentorCard from "@/components/MentorCard";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { mentors, categories } from "@/data/mockData";
+import { API_BASE } from "@/features/authsystem/config";
+
+interface ApiMentor {
+  _id: string;
+  name: string;
+  email: string;
+  avatar?: string | null;
+  skills: string[];
+}
+
+interface MentorListItem {
+  id: string;
+  name: string;
+  avatar: string;
+  title: string;
+  skills: string[];
+  rating: number;
+  reviewCount: number;
+  pricePerSession: number;
+  category: string;
+}
+
+const parseApiResponse = async (res: Response) => {
+  const raw = await res.text();
+  try {
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return raw;
+  }
+};
+
+const fallbackAvatar = "https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=400&q=80";
 
 const MentorsPage = () => {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [particlesReady, setParticlesReady] = useState(false);
+  const [mentorsData, setMentorsData] = useState<MentorListItem[]>([]);
+  const [loadingMentors, setLoadingMentors] = useState(true);
+  const [mentorsError, setMentorsError] = useState("");
 
   useEffect(() => {
     initParticlesEngine(async (engine) => {
@@ -22,6 +56,72 @@ const MentorsPage = () => {
       setParticlesReady(true);
     });
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadMentors = async () => {
+      setLoadingMentors(true);
+      setMentorsError("");
+
+      try {
+        const res = await fetch(`${API_BASE}/auth/mentors`, {
+          signal: controller.signal,
+        });
+
+        const data = await parseApiResponse(res);
+        if (!res.ok) {
+          const message =
+            data && typeof data === "object" && "error" in data
+              ? String((data as { error: unknown }).error)
+              : "Failed to load mentors";
+          throw new Error(message);
+        }
+
+        const list =
+          data && typeof data === "object" && "mentors" in data && Array.isArray((data as { mentors: unknown[] }).mentors)
+            ? ((data as { mentors: ApiMentor[] }).mentors)
+            : [];
+
+        const mappedMentors = list.map((mentor) => {
+          const skills = Array.isArray(mentor.skills) ? mentor.skills.filter(Boolean) : [];
+          const title = skills.length > 0 ? `${skills[0]} Mentor` : "Mentor";
+          return {
+            id: mentor._id,
+            name: mentor.name,
+            avatar: mentor.avatar || fallbackAvatar,
+            title,
+            skills,
+            rating: 5,
+            reviewCount: 0,
+            pricePerSession: 0,
+            category: skills[0] || "General",
+          };
+        });
+
+        setMentorsData(mappedMentors);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setMentorsError(error instanceof Error ? error.message : "Failed to load mentors");
+        setMentorsData([]);
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoadingMentors(false);
+        }
+      }
+    };
+
+    loadMentors();
+    return () => controller.abort();
+  }, []);
+
+  const categories = useMemo(() => {
+    const unique = new Set<string>();
+    mentorsData.forEach((mentor) => {
+      if (mentor.category) unique.add(mentor.category);
+    });
+    return ["All", ...Array.from(unique)];
+  }, [mentorsData]);
 
   const particlesOptions = useMemo<ISourceOptions>(
     () => ({
@@ -92,7 +192,7 @@ const MentorsPage = () => {
     [],
   );
 
-  const filtered = mentors.filter((m) => {
+  const filtered = mentorsData.filter((m) => {
     const matchesSearch = m.name.toLowerCase().includes(search.toLowerCase()) || m.skills.some((s) => s.toLowerCase().includes(search.toLowerCase()));
     const matchesCategory = activeCategory === "All" || m.category === activeCategory;
     return matchesSearch && matchesCategory;
@@ -140,11 +240,21 @@ const MentorsPage = () => {
         </div>
 
         {/* Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map((mentor) => (
-            <MentorCard key={mentor.id} mentor={mentor} />
-          ))}
-        </div>
+        {loadingMentors ? (
+          <div className="text-center py-20">
+            <p className="text-muted-foreground">Loading mentors...</p>
+          </div>
+        ) : mentorsError ? (
+          <div className="text-center py-20">
+            <p className="text-destructive">{mentorsError}</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filtered.map((mentor) => (
+              <MentorCard key={mentor.id} mentor={mentor} />
+            ))}
+          </div>
+        )}
 
         {filtered.length === 0 && (
           <div className="text-center py-20">

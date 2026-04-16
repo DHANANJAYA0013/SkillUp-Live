@@ -92,7 +92,7 @@ const DashboardPage = () => {
                     <BookOpen className="w-4 h-4" /> Find a Mentor
                   </Button>
                 </Link>
-                <Link to="/skills">
+                <Link to="/sessions">
                   <Button variant="outline" className="w-full justify-start gap-2">
                     <Star className="w-4 h-4" /> Browse Skills
                   </Button>

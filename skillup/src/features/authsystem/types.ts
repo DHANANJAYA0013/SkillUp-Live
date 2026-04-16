@@ -22,6 +22,8 @@ export interface AuthUser {
   email: string;
   avatar?: string | null;
   role: UserRole;
+  followers?: string[];
+  following?: string[];
   profileCompleted: boolean;
   profile?: Partial<LearnerProfile & MentorProfile>;
   createdAt?: string;

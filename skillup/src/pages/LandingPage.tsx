@@ -228,7 +228,7 @@ const LandingPage = () => {
               <h2 className="text-2xl sm:text-3xl font-bold text-foreground">Popular Skills</h2>
               <p className="text-muted-foreground mt-2">Most sought-after skills this month</p>
             </div>
-            <Link to="/skills" className="text-sm font-medium text-primary hover:underline hidden sm:block">
+            <Link to="/sessions" className="text-sm font-medium text-primary hover:underline hidden sm:block">
               View all →
             </Link>
           </div>

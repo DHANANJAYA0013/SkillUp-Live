@@ -10,7 +10,7 @@ import SignupPage from "./pages/SignupPage";
 import SigninPage from "./pages/SigninPage";
 import MentorsPage from "./pages/MentorsPage";
 import MentorProfilePage from "./pages/MentorProfilePage";
-import SkillsPage from "./pages/SkillsPage";
+import SessionsPage from "./pages/SessionsPage";
 import DashboardPage from "./pages/DashboardPage";
 import MentorDashboardPage from "./pages/MentorDashboardPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
@@ -49,11 +49,13 @@ const App = () => (
               <Route path="/landing" element={<LandingPage />} />
               <Route path="/start-live" element={<LiveSplashPage />} />
               <Route path="/live-session" element={<LiveSessionPage />} />
+              <Route path="/room/:roomId" element={<LiveSessionPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/signin" element={<SigninPage />} />
               <Route path="/mentors" element={<MentorsPage />} />
               <Route path="/mentors/:id" element={<MentorProfilePage />} />
-              <Route path="/skills" element={<SkillsPage />} />
+              <Route path="/sessions" element={<SessionsPage />} />
+              {/* <Route path="/skills" element={<Navigate to="/sessions" replace />} /> */}
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/mentor-dashboard" element={<MentorDashboardPage />} />
               <Route path="/admin-login" element={<AdminLoginPage />} />
