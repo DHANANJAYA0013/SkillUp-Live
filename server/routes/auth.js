@@ -43,6 +43,10 @@ router.post("/google", async (req, res) => {
       await user.save();
     }
 
+    if (user.disabled) {
+      return res.status(403).json({ error: "Account is disabled" });
+    }
+
     res.json({
       token: signToken(user._id),
       user,
@@ -109,6 +113,10 @@ router.post("/github", async (req, res) => {
     } else if (!user.githubId) {
       user.githubId = githubId;
       await user.save();
+    }
+
+    if (user.disabled) {
+      return res.status(403).json({ error: "Account is disabled" });
     }
 
     res.json({

@@ -39,6 +39,7 @@ const userSchema = new mongoose.Schema(
 
     profileCompleted: { type: Boolean, default: false },
     profile: { type: profileSchema, default: () => ({}) },
+    disabled: { type: Boolean, default: false, index: true },
   },
   { timestamps: true }
 );

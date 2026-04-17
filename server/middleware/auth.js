@@ -11,6 +11,7 @@ const verifyToken = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id).select("-__v");
     if (!user) return res.status(401).json({ error: "User not found" });
+    if (user.disabled) return res.status(403).json({ error: "Account is disabled" });
 
     if (user.role && !["learner", "mentor"].includes(user.role)) {
       user.role = "mentor";

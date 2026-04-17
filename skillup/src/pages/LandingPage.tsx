@@ -154,7 +154,7 @@ const LandingPage = () => {
               </span>
             </motion.h1>
             <motion.p variants={fadeUp} custom={2} className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
-              Connect with experienced mentors, book personalized sessions, and accelerate your growth in programming, design, music, and more.
+              Connect with experienced mentors and accelerate your growth in programming, design, music, and more.
             </motion.p>
 
             <motion.div variants={fadeUp} custom={3} className="flex flex-wrap items-center justify-center gap-3">
@@ -191,9 +191,6 @@ const LandingPage = () => {
               <h2 className="text-2xl sm:text-3xl font-bold text-foreground">Top Mentors</h2>
               <p className="text-muted-foreground mt-2">Learn from the best in their fields</p>
             </div>
-            <span className="text-sm font-medium text-primary hidden sm:block opacity-80 cursor-default">
-              View all →
-            </span>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {mentors.slice(0, 3).map((mentor) => (
@@ -211,9 +208,6 @@ const LandingPage = () => {
               <h2 className="text-2xl sm:text-3xl font-bold text-foreground">Popular Skills</h2>
               <p className="text-muted-foreground mt-2">Most sought-after skills this month</p>
             </div>
-            <span className="text-sm font-medium text-primary hidden sm:block opacity-80 cursor-default">
-              View all →
-            </span>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {skills.slice(0, 3).map((skill) => (

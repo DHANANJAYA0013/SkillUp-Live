@@ -34,7 +34,9 @@ import AuthMentorProfilePage from "./features/authsystem/pages/AuthMentorProfile
 import AuthHomePage from "./features/authsystem/pages/AuthHomePage";
 
 const queryClient = new QueryClient();
-const isAdminAuthenticated = () => localStorage.getItem("isAdminAuthenticated") === "true";
+const isAdminAuthenticated = () => {
+  return Boolean(localStorage.getItem("skillup_admin_token"));
+};
 
 const RoleBasedDashboardRoute = () => {
   const { user, loading } = useAuth();
