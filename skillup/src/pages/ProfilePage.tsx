@@ -127,12 +127,6 @@ const ProfilePage = () => {
   const [certifications, setCertifications] = useState(initial.certifications);
   const [portfolioLinks, setPortfolioLinks] = useState(initial.portfolioLinks);
   const [saving, setSaving] = useState(false);
-  const [sessionTitle, setSessionTitle] = useState("");
-  const [sessionDescription, setSessionDescription] = useState("");
-  const [sessionDateTime, setSessionDateTime] = useState("");
-  const [sessionDuration, setSessionDuration] = useState("");
-  const [sessionTopic, setSessionTopic] = useState("");
-  const [creatingSession, setCreatingSession] = useState(false);
 
   useEffect(() => {
     initParticlesEngine(async (engine) => {
@@ -264,83 +258,6 @@ const ProfilePage = () => {
     navigate("/", { replace: true });
   };
 
-  const handleCreateSession = async () => {
-    if (!token) {
-      toast({ title: "Not signed in", description: "Sign in to create sessions.", variant: "destructive" });
-      return;
-    }
-
-    if (authUser?.role !== "mentor") {
-      toast({ title: "Access denied", description: "Only mentors can create sessions.", variant: "destructive" });
-      return;
-    }
-
-    const normalizedTitle = sessionTitle.trim();
-    const normalizedDescription = sessionDescription.trim();
-    const normalizedTopic = sessionTopic.trim();
-    const durationValue = Number(sessionDuration);
-
-    if (!normalizedTitle || !normalizedDescription || !sessionDateTime || !normalizedTopic || !Number.isFinite(durationValue) || durationValue <= 0) {
-      toast({
-        title: "Missing fields",
-        description: "Provide title, description, date & time, duration, and topic.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setCreatingSession(true);
-
-    try {
-      const res = await fetch(`${API_BASE}/sessions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          title: normalizedTitle,
-          description: normalizedDescription,
-          dateTime: new Date(sessionDateTime).toISOString(),
-          date: sessionDateTime.split("T")[0] || "",
-          startTime: sessionDateTime.split("T")[1] || "",
-          duration: durationValue,
-          topic: normalizedTopic,
-        }),
-      });
-
-      const data = await parseApiResponse(res);
-      if (!res.ok) {
-        const message =
-          data && typeof data === "object" && "error" in data
-            ? String((data as { error: unknown }).error)
-            : typeof data === "string" && data.trim()
-              ? data
-              : "Failed to create session";
-        throw new Error(message);
-      }
-
-      setSessionTitle("");
-      setSessionDescription("");
-      setSessionDateTime("");
-      setSessionDuration("");
-      setSessionTopic("");
-
-      toast({
-        title: "Session created",
-        description: "Your session was saved in the sessions collection.",
-      });
-    } catch (error) {
-      toast({
-        title: "Creation failed",
-        description: error instanceof Error ? error.message : "Try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setCreatingSession(false);
-    }
-  };
-
   const displayName = authUser?.name || "Dhananjaya";
   const displayEmail = authUser?.email || "dhananjaya@skillbridge.io";
   const displayAvatar = authUser?.avatar || "https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=400&q=80";
@@ -369,8 +286,11 @@ const ProfilePage = () => {
             <ArrowLeft className="w-4 h-4 mr-2" /> Back 
           </Button>
         </div>
-        <div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Profile</h1>
+          {authUser.role === "mentor" && (
+            <Button onClick={() => navigate("/profile/schedule-session")}>Schedule Session</Button>
+          )}
           {/* <p className="text-muted-foreground mt-1">Edit your role-based profile details and sync them to your users collection.</p> */}
         </div>
 
@@ -540,77 +460,6 @@ const ProfilePage = () => {
                 </div>
               </CardContent>
             </Card>
-
-            {authUser.role === "mentor" && (
-              <Card className="shadow-card">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-lg">Schedule Session</CardTitle>
-                  <CardDescription>Create a new mentoring session in the sessions collection.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label htmlFor="sessionTitle">Title</Label>
-                      <Input
-                        id="sessionTitle"
-                        value={sessionTitle}
-                        onChange={(e) => setSessionTitle(e.target.value)}
-                        placeholder="Frontend Interview Preparation"
-                        className="bg-card"
-                      />
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label htmlFor="sessionDescription">Description</Label>
-                      <Textarea
-                        id="sessionDescription"
-                        rows={4}
-                        value={sessionDescription}
-                        onChange={(e) => setSessionDescription(e.target.value)}
-                        placeholder="What this session will cover."
-                        className="bg-card"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="sessionDateTime">Date & Time</Label>
-                      <Input
-                        id="sessionDateTime"
-                        type="datetime-local"
-                        value={sessionDateTime}
-                        onChange={(e) => setSessionDateTime(e.target.value)}
-                        className="bg-card"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="sessionDuration">Duration (minutes)</Label>
-                      <Input
-                        id="sessionDuration"
-                        type="number"
-                        min="1"
-                        value={sessionDuration}
-                        onChange={(e) => setSessionDuration(e.target.value)}
-                        placeholder="60"
-                        className="bg-card"
-                      />
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label htmlFor="sessionTopic">Topic</Label>
-                      <Input
-                        id="sessionTopic"
-                        value={sessionTopic}
-                        onChange={(e) => setSessionTopic(e.target.value)}
-                        placeholder="React, Node.js, System Design"
-                        className="bg-card"
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <Button onClick={handleCreateSession} disabled={creatingSession}>
-                        {creatingSession ? "Creating..." : "Create session"}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </div>
         </div>
         </main>

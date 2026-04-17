@@ -51,7 +51,7 @@ export default function AuthLearnerProfilePage() {
       if (!res.ok) throw new Error(data.error || "Failed to save learner profile");
 
       updateUser(data.user);
-      navigate("/landing", { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch (error) {
       toast({
         title: "Profile save failed",

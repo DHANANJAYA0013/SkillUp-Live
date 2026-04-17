@@ -36,7 +36,7 @@ export default function AuthLoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      navigate(user.profileCompleted ? "/landing" : "/auth/onboard", { replace: true });
+      navigate(user.profileCompleted ? "/dashboard" : "/auth/onboard", { replace: true });
     }
   }, [user, loading, navigate]);
 
@@ -80,7 +80,7 @@ export default function AuthLoginPage() {
 
       login(data.token, data.user);
       setAuthDebug(null);
-      navigate(data.profileCompleted ? "/landing" : "/auth/onboard", { replace: true });
+      navigate(data.profileCompleted ? "/dashboard" : "/auth/onboard", { replace: true });
     } catch (error) {
       toast({
         title: "Unable to continue",

@@ -55,7 +55,7 @@ export default function AuthMentorProfilePage() {
       if (!res.ok) throw new Error(data.error || "Failed to save mentor profile");
 
       updateUser(data.user);
-      navigate("/landing", { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch (error) {
       toast({
         title: "Profile save failed",

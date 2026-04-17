@@ -26,7 +26,7 @@ export default function AuthGithubCallbackPage() {
         if (!r.ok) throw new Error(data.error || "GitHub authentication failed");
 
         login(data.token, data.user);
-        navigate(data.profileCompleted ? "/landing" : "/auth/onboard", { replace: true });
+        navigate(data.profileCompleted ? "/dashboard" : "/auth/onboard", { replace: true });
       })
       .catch((error) => {
         toast({

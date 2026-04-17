@@ -1,15 +1,14 @@
 import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Search, Users, BookOpen, Award, Zap, Shield, TrendingUp } from "lucide-react";
+import { ArrowRight, Users, Zap, Shield, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Particles, { initParticlesEngine } from "@tsparticles/react";
 import { loadSlim } from "@tsparticles/slim";
 import type { ISourceOptions } from "@tsparticles/engine";
 import MentorCard from "@/components/MentorCard";
 import SkillCard from "@/components/SkillCard";
-import { mentors, skills, categories } from "@/data/mockData";
-import Navbar from "@/components/Navbar";
+import { mentors, skills } from "@/data/mockData";
 import Footer from "@/components/Footer";
 import heroBackground from "@/Assets/background_1.webp";
 
@@ -121,8 +120,6 @@ const LandingPage = () => {
       </div>
 
       <div className="relative z-10">
-      <Navbar />
-
       {/* Hero */}
       <section className="relative overflow-hidden min-h-[92vh]">
         <div
@@ -132,6 +129,14 @@ const LandingPage = () => {
         <div className="absolute inset-0 bg-background/10" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(239_84%_67%/0.08),transparent_60%)]" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-28 pb-24 sm:pb-32 relative">
+          <div className="absolute top-4 right-4 sm:top-6 sm:right-6 lg:right-8 z-20">
+            <Link to="/auth">
+              <Button className="h-9 px-3 text-sm gradient-primary text-primary-foreground border-0 gap-2 hover:opacity-90 sm:h-10 sm:px-4 lg:h-11 lg:px-6">
+                Get Started <ArrowRight className="w-4 h-4" />
+              </Button>
+            </Link>
+          </div>
+
           <motion.div
             className="max-w-3xl mx-auto text-center"
             initial="hidden"
@@ -152,32 +157,10 @@ const LandingPage = () => {
               Connect with experienced mentors, book personalized sessions, and accelerate your growth in programming, design, music, and more.
             </motion.p>
 
-            {/* Search Bar */}
-            <motion.div variants={fadeUp} custom={3} className="max-w-xl mx-auto mb-8">
-              <div className="glass rounded-xl p-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shadow-elevated">
-                <div className="flex-1 flex items-center gap-2 px-3 min-w-0">
-                  <Search className="w-5 h-5 text-muted-foreground" />
-                  <input
-                    type="text"
-                    placeholder="What do you want to learn?"
-                    className="flex-1 bg-transparent outline-none text-foreground placeholder:text-muted-foreground py-2"
-                  />
-                </div>
-                <Button className="gradient-primary text-primary-foreground border-0 px-6 w-full sm:w-auto">
-                  Search
-                </Button>
-              </div>
-            </motion.div>
-
-            <motion.div variants={fadeUp} custom={4} className="flex flex-wrap items-center justify-center gap-3">
-              <Link to="/mentors">
-                <Button size="lg" className="gradient-primary text-primary-foreground border-0 gap-2 hover:opacity-90">
-                  Find Mentors <ArrowRight className="w-4 h-4" />
-                </Button>
-              </Link>
-              <Link to="/signup">
+            <motion.div variants={fadeUp} custom={3} className="flex flex-wrap items-center justify-center gap-3">
+              <Link to="/auth">
                 <Button size="lg" variant="outline" className="gap-2">
-                  <BookOpen className="w-4 h-4" /> Start Teaching
+                  Sign In
                 </Button>
               </Link>
             </motion.div>
