@@ -282,7 +282,7 @@ const ProfilePage = () => {
       <div className="relative z-10">
         <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8">
         <div>
-          <Button variant="ghost" size="sm" className="mb-4" onClick={() => navigate("/landing")}> 
+          <Button variant="ghost" size="sm" className="mb-4" onClick={() => navigate("/dashboard")}> 
             <ArrowLeft className="w-4 h-4 mr-2" /> Back 
           </Button>
         </div>

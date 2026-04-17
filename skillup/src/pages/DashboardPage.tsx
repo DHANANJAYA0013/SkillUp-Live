@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Calendar, Clock, BookOpen, TrendingUp, Star, ArrowRight, Video, PlayCircle, Users, PlusCircle, BarChart3, Radio, UserPlus } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import Particles, { initParticlesEngine } from "@tsparticles/react";
+import { loadSlim } from "@tsparticles/slim";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Navbar from "@/components/Navbar";
@@ -33,10 +35,113 @@ const parseApiResponse = async (res: Response) => {
   }
 };
 
+const particlesOptions = {
+  background: {
+    color: {
+      value: "transparent",
+    },
+  },
+  fpsLimit: 60,
+  interactivity: {
+    events: {
+      onHover: {
+        enable: true,
+        mode: "grab" as const,
+      },
+      resize: {
+        enable: true,
+      },
+    },
+    modes: {
+      grab: {
+        distance: 140,
+        links: {
+          opacity: 0.3,
+        },
+      },
+    },
+  },
+  particles: {
+    color: {
+      value: "#6b8cff",
+    },
+    links: {
+      color: "#8aa6ff",
+      distance: 140,
+      enable: true,
+      opacity: 0.25,
+      width: 1,
+    },
+    move: {
+      direction: "none" as const,
+      enable: true,
+      outModes: {
+        default: "out" as const,
+      },
+      random: false,
+      speed: 0.8,
+      straight: false,
+    },
+    number: {
+      density: {
+        enable: true,
+      },
+      value: 60,
+    },
+    opacity: {
+      value: 0.25,
+    },
+    shape: {
+      type: "circle" as const,
+    },
+    size: {
+      value: { min: 1, max: 3 },
+    },
+  },
+  detectRetina: true,
+};
+
 const DashboardPage = () => {
-  const { user: authUser, token } = useAuth();
+  const { user: authUser, token, logout } = useAuth();
+  const navigate = useNavigate();
   const [sessionsData, setSessionsData] = useState<DbSession[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
+  const [particlesReady, setParticlesReady] = useState(false);
+
+  useEffect(() => {
+    initParticlesEngine(async (engine) => {
+      await loadSlim(engine);
+    }).then(() => {
+      setParticlesReady(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!authUser) {
+      navigate("/landing", { replace: true });
+    }
+  }, [authUser, navigate]);
+
+  useEffect(() => {
+    // Keep the current route in history so browser back can be confirmed first.
+    window.history.pushState({ dashboardGuard: true }, "", window.location.href);
+
+    const onPopState = () => {
+      const shouldExit = window.confirm("Do you want to exit the dashboard?");
+
+      if (shouldExit) {
+        logout();
+        return;
+      }
+
+      window.history.pushState({ dashboardGuard: true }, "", window.location.href);
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, [logout, navigate]);
 
   useEffect(() => {
     let isActive = true;
@@ -152,9 +257,14 @@ const DashboardPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+    <div className="relative min-h-screen bg-background overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none opacity-70" aria-hidden="true">
+        {particlesReady && <Particles id="dashboard-particles" className="h-full w-full" options={particlesOptions} />}
+      </div>
+
+      <div className="relative z-10">
+        <Navbar />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
             {isMentor ? (
@@ -445,6 +555,7 @@ const DashboardPage = () => {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

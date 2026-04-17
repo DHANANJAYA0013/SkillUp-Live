@@ -191,13 +191,13 @@ const LandingPage = () => {
               <h2 className="text-2xl sm:text-3xl font-bold text-foreground">Top Mentors</h2>
               <p className="text-muted-foreground mt-2">Learn from the best in their fields</p>
             </div>
-            <Link to="/mentors" className="text-sm font-medium text-primary hover:underline hidden sm:block">
+            <span className="text-sm font-medium text-primary hidden sm:block opacity-80 cursor-default">
               View all →
-            </Link>
+            </span>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {mentors.slice(0, 3).map((mentor) => (
-              <MentorCard key={mentor.id} mentor={mentor} />
+              <MentorCard key={mentor.id} mentor={mentor} disableNavigation />
             ))}
           </div>
         </div>
@@ -211,9 +211,9 @@ const LandingPage = () => {
               <h2 className="text-2xl sm:text-3xl font-bold text-foreground">Popular Skills</h2>
               <p className="text-muted-foreground mt-2">Most sought-after skills this month</p>
             </div>
-            <Link to="/sessions" className="text-sm font-medium text-primary hover:underline hidden sm:block">
+            <span className="text-sm font-medium text-primary hidden sm:block opacity-80 cursor-default">
               View all →
-            </Link>
+            </span>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {skills.slice(0, 3).map((skill) => (
@@ -251,16 +251,12 @@ const LandingPage = () => {
             <h2 className="text-2xl sm:text-3xl font-bold text-primary-foreground mb-4">Ready to Start Learning?</h2>
             <p className="text-primary-foreground/80 mb-8 max-w-lg mx-auto">Join thousands of learners and mentors building skills together.</p>
             <div className="flex flex-wrap justify-center gap-4">
-              <Link to="/signup">
-                <Button size="lg" variant="secondary" className="bg-card text-foreground hover:bg-card/90 gap-2">
-                  Join as Learner <ArrowRight className="w-4 h-4" />
-                </Button>
-              </Link>
-              <Link to="/signup">
-                <Button size="lg" variant="outline" className="border-primary-foreground/30 text-foreground hover:bg-primary-foreground/10">
-                  Become a Mentor
-                </Button>
-              </Link>
+              <Button size="lg" variant="secondary" className="bg-card text-foreground gap-2 cursor-default" type="button">
+                Join as Learner <ArrowRight className="w-4 h-4" />
+              </Button>
+              <Button size="lg" variant="outline" className="border-primary-foreground/30 text-foreground cursor-default" type="button">
+                Become a Mentor
+              </Button>
             </div>
           </div>
         </div>
