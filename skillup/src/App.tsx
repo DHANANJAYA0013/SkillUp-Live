@@ -10,6 +10,7 @@ import LandingPage from "./pages/LandingPage";
 // import SigninPage from "./pages/SigninPage";
 import MentorsPage from "./pages/MentorsPage";
 import MentorProfilePage from "./pages/MentorProfilePage";
+import LearnerProfilePage from "./pages/LearnerProfilePage";
 import SessionsPage from "./pages/SessionsPage";
 import DashboardPage from "./pages/DashboardPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
@@ -72,6 +73,7 @@ const App = () => (
               <Route path="/signin" element={<SigninPage />} /> */}
               <Route path="/mentors" element={<MentorsPage />} />
               <Route path="/mentors/:id" element={<MentorProfilePage />} />
+              <Route path="/learners/:id" element={<LearnerProfilePage />} />
               <Route path="/sessions" element={<SessionsPage />} />
               {/* <Route path="/skills" element={<Navigate to="/sessions" replace />} /> */}
               <Route path="/dashboard" element={<RoleBasedDashboardRoute />} />

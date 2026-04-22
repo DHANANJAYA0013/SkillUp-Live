@@ -42,5 +42,5 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     envVars:
-      - key: VITE_SIGNAL_SERVER_URL
-        value: https://skillup-live.onrender.com
+        - key: VITE_API_BASE
+          value: https://skillbridge-server.onrender.com/api

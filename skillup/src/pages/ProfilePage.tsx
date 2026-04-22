@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import Particles, { initParticlesEngine } from "@tsparticles/react";
@@ -92,6 +93,16 @@ const particlesOptions = {
   detectRetina: true,
 };
 
+interface NetworkUser {
+  _id: string;
+  name: string;
+  email: string;
+  avatar?: string | null;
+  role: UserRole;
+}
+
+const fallbackAvatar = "https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=400&q=80";
+
 const ProfilePage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -127,6 +138,11 @@ const ProfilePage = () => {
   const [certifications, setCertifications] = useState(initial.certifications);
   const [portfolioLinks, setPortfolioLinks] = useState(initial.portfolioLinks);
   const [saving, setSaving] = useState(false);
+  const [expandedNetworkType, setExpandedNetworkType] = useState<"followers" | "following" | null>(null);
+  const [networkType, setNetworkType] = useState<"followers" | "following">("following");
+  const [networkUsers, setNetworkUsers] = useState<NetworkUser[]>([]);
+  const [loadingNetworkUsers, setLoadingNetworkUsers] = useState(false);
+  const [networkError, setNetworkError] = useState("");
 
   useEffect(() => {
     initParticlesEngine(async (engine) => {
@@ -258,6 +274,94 @@ const ProfilePage = () => {
     navigate("/", { replace: true });
   };
 
+  const handleNetworkClick = async (type: "followers" | "following") => {
+    if (expandedNetworkType === type) {
+      setExpandedNetworkType(null);
+      setNetworkUsers([]);
+      setNetworkError("");
+      return;
+    }
+
+    setNetworkType(type);
+    setExpandedNetworkType(type);
+    setNetworkUsers([]);
+    setNetworkError("");
+
+    const ids =
+      type === "followers"
+        ? (Array.isArray(authUser?.followers) ? authUser.followers : [])
+        : (Array.isArray(authUser?.following) ? authUser.following : []);
+
+    if (!ids.length) return;
+
+    if (!token) {
+      setNetworkError("Sign in again to load user details.");
+      return;
+    }
+
+    setLoadingNetworkUsers(true);
+    try {
+      const activeType = type;
+      const users = await Promise.all(
+        ids.map(async (id) => {
+          const res = await fetch(`${API_BASE}/auth/users/${id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await parseApiResponse(res);
+
+          if (!res.ok || !data || typeof data !== "object" || !("user" in data)) {
+            return null;
+          }
+
+          const user = (data as { user: Record<string, unknown> }).user;
+          if (!user || typeof user !== "object" || typeof user._id !== "string") {
+            return null;
+          }
+
+          return {
+            _id: user._id,
+            name: typeof user.name === "string" ? user.name : "Unknown",
+            email: typeof user.email === "string" ? user.email : "",
+            avatar: typeof user.avatar === "string" ? user.avatar : null,
+            role: user.role === "mentor" || user.role === "learner" ? user.role : null,
+          } as NetworkUser;
+        }),
+      );
+
+      if (expandedNetworkType !== activeType && expandedNetworkType !== null) {
+        return;
+      }
+
+      setNetworkUsers(users.filter((user): user is NetworkUser => Boolean(user)));
+    } catch {
+      setNetworkError("Failed to load this list. Please try again.");
+    } finally {
+      setLoadingNetworkUsers(false);
+    }
+  };
+
+  const handleNetworkUserClick = (user: NetworkUser) => {
+    setExpandedNetworkType(null);
+    setNetworkUsers([]);
+    setNetworkError("");
+
+    if (user.role === "mentor") {
+      navigate(`/mentors/${user._id}`);
+      return;
+    }
+
+    if (user.role === "learner") {
+      navigate(`/learners/${user._id}`);
+      return;
+    }
+
+    toast({
+      title: "Profile unavailable",
+      description: "This user has not completed a profile yet.",
+      variant: "destructive",
+    });
+  };
+
   const displayName = authUser?.name || "Dhananjaya";
   const displayEmail = authUser?.email || "dhananjaya@skillbridge.io";
   const displayAvatar = authUser?.avatar || "https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=400&q=80";
@@ -310,20 +414,164 @@ const ProfilePage = () => {
                 <p className="text-sm text-muted-foreground">{displayEmail}</p>
               </div>
               {authUser.role === "mentor" ? (
-                <div className="w-full grid grid-cols-2 gap-3">
-                  <div className="rounded-lg border border-border/60 bg-muted/30 py-2">
-                    <p className="text-xs text-muted-foreground">Followers</p>
-                    <p className="text-lg font-semibold text-foreground">{followersCount}</p>
+                <div className="w-full space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void handleNetworkClick("followers")}
+                      className="rounded-lg border border-border/60 bg-muted/30 py-2 transition hover:bg-muted/50"
+                    >
+                      <p className="text-xs text-muted-foreground">Followers</p>
+                      <p className="text-lg font-semibold text-foreground">{followersCount}</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleNetworkClick("following")}
+                      className="rounded-lg border border-border/60 bg-muted/30 py-2 transition hover:bg-muted/50"
+                    >
+                      <p className="text-xs text-muted-foreground">Following</p>
+                      <p className="text-lg font-semibold text-foreground">{followingCount}</p>
+                    </button>
                   </div>
-                  <div className="rounded-lg border border-border/60 bg-muted/30 py-2">
-                    <p className="text-xs text-muted-foreground">Following</p>
-                    <p className="text-lg font-semibold text-foreground">{followingCount}</p>
-                  </div>
+
+                  {expandedNetworkType === "followers" || expandedNetworkType === "following" ? (
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-left shadow-sm">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground" style={{ textTransform: "capitalize" }}>
+                            {networkType}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {networkType === "followers" ? "People following you" : "People you follow"}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setExpandedNetworkType(null);
+                            setNetworkUsers([]);
+                            setNetworkError("");
+                          }}
+                        >
+                          Close
+                        </Button>
+                      </div>
+
+                      <ScrollArea className="max-h-[220px] pr-3">
+                        <div className="space-y-2">
+                          {loadingNetworkUsers && <p className="text-sm text-muted-foreground">Loading users...</p>}
+
+                          {!loadingNetworkUsers && networkError && (
+                            <p className="text-sm text-destructive">{networkError}</p>
+                          )}
+
+                          {!loadingNetworkUsers && !networkError && networkUsers.length === 0 && (
+                            <p className="text-sm text-muted-foreground">No users found in this list.</p>
+                          )}
+
+                          {!loadingNetworkUsers &&
+                            !networkError &&
+                            networkUsers.map((user) => (
+                              <button
+                                key={user._id}
+                                type="button"
+                                onClick={() => handleNetworkUserClick(user)}
+                                className="w-full min-h-[64px] rounded-lg border border-border/60 px-3 py-2 text-left transition hover:bg-muted/40"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Avatar className="h-10 w-10">
+                                    <AvatarImage src={user.avatar || fallbackAvatar} alt={user.name} />
+                                    <AvatarFallback>{user.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                                  </Avatar>
+                                  <div className="min-w-0">
+                                    <p className="truncate font-medium text-foreground">{user.name}</p>
+                                    <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                                    <p className="text-xs text-muted-foreground" style={{ textTransform: "capitalize" }}>
+                                      {user.role || "no role"}
+                                    </p>
+                                  </div>
+                                </div>
+                              </button>
+                            ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
-                <div className="w-full rounded-lg border border-border/60 bg-muted/30 py-2">
-                  <p className="text-xs text-muted-foreground">Following</p>
-                  <p className="text-lg font-semibold text-foreground">{followingCount}</p>
+                <div className="w-full space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => void handleNetworkClick("following")}
+                    className="w-full rounded-lg border border-border/60 bg-muted/30 py-2 transition hover:bg-muted/50"
+                  >
+                    <p className="text-xs text-muted-foreground">Following</p>
+                    <p className="text-lg font-semibold text-foreground">{followingCount}</p>
+                  </button>
+
+                  {expandedNetworkType === "following" ? (
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-left shadow-sm">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">Following</p>
+                          <p className="text-xs text-muted-foreground">People you follow</p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setExpandedNetworkType(null);
+                            setNetworkUsers([]);
+                            setNetworkError("");
+                          }}
+                        >
+                          Close
+                        </Button>
+                      </div>
+
+                      <ScrollArea className="max-h-[220px] pr-3">
+                        <div className="space-y-2">
+                          {loadingNetworkUsers && <p className="text-sm text-muted-foreground">Loading users...</p>}
+
+                          {!loadingNetworkUsers && networkError && (
+                            <p className="text-sm text-destructive">{networkError}</p>
+                          )}
+
+                          {!loadingNetworkUsers && !networkError && networkUsers.length === 0 && (
+                            <p className="text-sm text-muted-foreground">No users found in this list.</p>
+                          )}
+
+                          {!loadingNetworkUsers &&
+                            !networkError &&
+                            networkUsers.map((user) => (
+                              <button
+                                key={user._id}
+                                type="button"
+                                onClick={() => handleNetworkUserClick(user)}
+                                className="w-full min-h-[64px] rounded-lg border border-border/60 px-3 py-2 text-left transition hover:bg-muted/40"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Avatar className="h-10 w-10">
+                                    <AvatarImage src={user.avatar || fallbackAvatar} alt={user.name} />
+                                    <AvatarFallback>{user.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                                  </Avatar>
+                                  <div className="min-w-0">
+                                    <p className="truncate font-medium text-foreground">{user.name}</p>
+                                    <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                                    <p className="text-xs text-muted-foreground" style={{ textTransform: "capitalize" }}>
+                                      {user.role || "no role"}
+                                    </p>
+                                  </div>
+                                </div>
+                              </button>
+                            ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  ) : null}
                 </div>
               )}
               <Button variant="outline" className="mt-2 w-full max-w-[180px]" onClick={handleSignout}>Sign out</Button>
@@ -462,6 +710,7 @@ const ProfilePage = () => {
             </Card>
           </div>
         </div>
+
         </main>
       </div>
     </div>

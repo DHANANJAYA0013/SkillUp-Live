@@ -183,6 +183,20 @@ router.get("/mentors/:id", async (req, res) => {
   }
 });
 
+router.get("/learners/:id", async (req, res) => {
+  try {
+    const learner = await User.findOne({ _id: req.params.id, role: "learner" }).select("-__v");
+
+    if (!learner) {
+      return res.status(404).json({ error: "Learner not found" });
+    }
+
+    return res.json({ learner });
+  } catch {
+    return res.status(400).json({ error: "Invalid learner id" });
+  }
+});
+
 router.get("/mentors/:id/follow-state", verifyToken, async (req, res) => {
   try {
     const mentor = await User.findOne({ _id: req.params.id, role: "mentor" }).select("_id followers");
