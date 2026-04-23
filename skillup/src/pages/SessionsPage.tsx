@@ -38,6 +38,44 @@ const parseApiResponse = async (res: Response) => {
   }
 };
 
+const SessionsBackdrop = () => (
+  <>
+    <style>{`
+      @keyframes orbFloat1 {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        50% { transform: translate(-30px, 40px) scale(1.08); }
+      }
+      @keyframes orbFloat2 {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        50% { transform: translate(40px, -30px) scale(1.06); }
+      }
+      @keyframes orbFloat3 {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        50% { transform: translate(-20px, -20px) scale(1.05); }
+      }
+    `}</style>
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        pointerEvents: "none",
+        zIndex: 0,
+        background: `
+          radial-gradient(ellipse 80% 60% at 80% 30%, rgba(167,139,250,0.16) 0%, transparent 60%),
+          radial-gradient(ellipse 50% 40% at 10% 80%, rgba(99,102,241,0.09) 0%, transparent 60%),
+          #F0EEFF
+        `,
+      }}
+      aria-hidden="true"
+    />
+    <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, overflow: "hidden" }} aria-hidden="true">
+      <div style={{ position: "absolute", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(167,139,250,0.18) 0%, transparent 70%)", top: "-10%", right: "-5%", animation: "orbFloat1 8s ease-in-out infinite" }} />
+      <div style={{ position: "absolute", width: 380, height: 380, borderRadius: "50%", background: "radial-gradient(circle, rgba(99,102,241,0.13) 0%, transparent 70%)", bottom: "5%", left: "-8%", animation: "orbFloat2 10s ease-in-out infinite" }} />
+      <div style={{ position: "absolute", width: 260, height: 260, borderRadius: "50%", background: "radial-gradient(circle, rgba(196,181,253,0.15) 0%, transparent 70%)", top: "45%", left: "40%", animation: "orbFloat3 7s ease-in-out infinite" }} />
+    </div>
+  </>
+);
+
 const SessionsPage = () => {
   const navigate = useNavigate();
   const { user: authUser, token } = useAuth();
@@ -371,7 +409,8 @@ const SessionsPage = () => {
   };
 
   return (
-    <div className="relative min-h-screen bg-background overflow-hidden">
+    <div className="relative min-h-screen overflow-hidden">
+      <SessionsBackdrop />
       <div className="absolute inset-0 pointer-events-none opacity-95" aria-hidden="true">
         {particlesReady && <Particles id="sessions-particles" className="h-full w-full" options={particlesOptions} />}
       </div>
