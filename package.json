@@ -9,6 +9,8 @@
     "build:frontend": "cd skillup && npm run build"
   },
   "dependencies": {
+    "axios": "^1.15.2",
+    "face-api.js": "^0.22.2",
     "three": "^0.184.0"
   }
 }

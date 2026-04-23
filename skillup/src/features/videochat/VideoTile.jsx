@@ -1,13 +1,14 @@
 import React, { useEffect, useRef } from "react";
 
-export default function VideoTile({ stream, name, muted = false, isLocal = false, videoOn, audioOn }) {
-  const videoRef = useRef(null);
+export default function VideoTile({ stream, name, muted = false, isLocal = false, videoOn, audioOn, externalVideoRef }) {
+  const internalVideoRef = useRef(null);
+  const videoRef = externalVideoRef || internalVideoRef;
 
   useEffect(() => {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
     }
-  }, [stream]);
+  }, [stream, videoRef]);
 
   return (
     <div className="video-tile" data-local={isLocal}>

@@ -7,6 +7,7 @@ const mongoose = require("mongoose");
 const { router: authRouter } = require("./routes/auth");
 const { router: sessionsRouter } = require("./routes/sessions");
 const { router: adminRouter } = require("./routes/admin");
+const attendanceRoutes = require("./routes/attendance");
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use(express.json());
 app.use("/api/auth", authRouter);
 app.use("/api/sessions", sessionsRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/attendance", attendanceRoutes);
 
 app.use((err, _req, res, next) => {
   if (!err) return next();

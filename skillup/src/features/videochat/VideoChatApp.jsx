@@ -1,12 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { useLocation, useNavigate } from "react-router-dom";
+import * as faceapi from "face-api.js";
+import { API_BASE } from "@/features/authsystem/config";
+import { useAuth } from "@/features/authsystem/AuthContext";
 import { usePeerConnections } from "./usePeerConnections";
 import VideoTile from "./VideoTile";
 import ChatPanel from "./ChatPanel";
 import "./videochat.css";
 
 const SIGNAL_SERVER = import.meta.env.VITE_SIGNAL_SERVER_URL || "http://localhost:4000";
+// Files in public/models are served at /models by Vite.
+const FACE_MODEL_URL = "/models";
 
 function Lobby({ onJoin, onBack }) {
   const [name, setName] = useState("");
@@ -90,8 +95,11 @@ function Lobby({ onJoin, onBack }) {
 }
 
 function Room({ userName, roomId, onLeave, onBack }) {
+  const { user } = useAuth();
   const socketRef = useRef(null);
   const localStreamRef = useRef(null);
+  const videoRef = useRef(null);
+  const faceModelsLoadedRef = useRef(false);
 
   const [localStream, setLocalStream] = useState(null);
   const [peers, setPeers] = useState({});
@@ -104,6 +112,8 @@ function Room({ userName, roomId, onLeave, onBack }) {
   const [copyFeedback, setCopyFeedback] = useState(false);
   const [layout, setLayout] = useState("grid");
   const [spotlightId, setSpotlightId] = useState(null);
+  const [faceDetected, setFaceDetected] = useState(false);
+  const [attendanceMarked, setAttendanceMarked] = useState(false);
 
   const addPeer = useCallback((id, info) => {
     setPeers((prev) => ({
@@ -141,6 +151,39 @@ function Room({ userName, roomId, onLeave, onBack }) {
       onRemoteStream: setPeerStream,
       onPeerLeft: removePeer,
     });
+
+  // Preparation hook: preload face detection model for future integration.
+  useEffect(() => {
+    console.log("[face-api] Room mounted. Preparing TinyFaceDetector model load.");
+    let cancelled = false;
+
+    const loadFaceDetectionModels = async () => {
+      if (faceModelsLoadedRef.current) {
+        console.log("[face-api] TinyFaceDetector already loaded. Skipping.");
+        return;
+      }
+
+      console.log(`[face-api] Loading TinyFaceDetector from ${FACE_MODEL_URL} (public/models)...`);
+
+      try {
+        await faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL);
+        if (!cancelled) {
+          faceModelsLoadedRef.current = true;
+          console.log("[face-api] TinyFaceDetector model loaded successfully.");
+        }
+      } catch (error) {
+        // Keep video chat flow unaffected if models are missing or still being added.
+        console.warn("[face-api] TinyFaceDetector model load failed:", error);
+      }
+    };
+
+    void loadFaceDetectionModels();
+
+    return () => {
+      cancelled = true;
+      console.log("[face-api] Room unmounted. Face model loader cleanup done.");
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -223,6 +266,90 @@ function Room({ userName, roomId, onLeave, onBack }) {
     };
   }, [addPeer, closeAll, closePC, handleAnswer, handleIceCandidate, handleOffer, makeOffer, removePeer, roomId, setPeerMedia, userName]);
 
+  useEffect(() => {
+    if (!videoOn) {
+      setFaceDetected(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const detectFaces = async () => {
+      if (!videoRef.current || !localStreamRef.current || !faceModelsLoadedRef.current) {
+        if (!cancelled) setFaceDetected(false);
+        return;
+      }
+
+      try {
+        const detections = await faceapi.detectAllFaces(
+          videoRef.current,
+          new faceapi.TinyFaceDetectorOptions()
+        );
+
+        if (!cancelled) {
+          setFaceDetected(detections.length > 0);
+        }
+      } catch {
+        if (!cancelled) {
+          setFaceDetected(false);
+        }
+      }
+    };
+
+    void detectFaces();
+    const detectionInterval = window.setInterval(() => {
+      void detectFaces();
+    }, 1000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(detectionInterval);
+    };
+  }, [videoOn, localStream]);
+
+  useEffect(() => {
+    if (!(faceDetected === true && attendanceMarked === false)) return;
+
+    const userId = user?._id;
+    if (!roomId || !userId || !userName) return;
+
+    // Flip immediately so this API is called only once per session render lifecycle.
+    setAttendanceMarked(true);
+
+    let cancelled = false;
+
+    const markAttendance = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/attendance/mark`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sessionId: roomId,
+            userId,
+            name: userName,
+          }),
+        });
+
+        const data = await res.json().catch(() => null);
+        const alreadyMarked = data && typeof data === "object" && "message" in data && data.message === "Already marked";
+
+        if (!cancelled && !(res.ok || alreadyMarked)) {
+          console.warn("[attendance] mark request returned non-success response:", data);
+        }
+      } catch (error) {
+        console.warn("[attendance] failed to mark attendance:", error);
+      }
+    };
+
+    void markAttendance();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [attendanceMarked, faceDetected, roomId, user?._id, userName]);
+
   const toggleVideo = useCallback(async () => {
     const stream = localStreamRef.current;
     if (!stream) return;
@@ -296,7 +423,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
   const sidebarUsers = spotlightId ? allParticipants.filter((p) => p.id !== spotlightId) : [];
 
   return (
-    <div className="room">
+    <div className="room" data-face-detected={faceDetected ? "true" : "false"}>
       <header className="room-header">
         <div className="header-left">
           <button className="back-nav-btn back-nav-btn-inline" onClick={onBack} type="button" aria-label="Go back">
@@ -316,6 +443,9 @@ function Room({ userName, roomId, onLeave, onBack }) {
             <UsersIcon />
             {allParticipants.length} participant{allParticipants.length !== 1 ? "s" : ""}
           </span>
+          <div style={{ fontSize: 12, marginTop: 6, opacity: 0.95 }}>
+            {attendanceMarked ? "Face Detected - Attendance Marked" : "Detecting Face..."}
+          </div>
         </div>
         <div className="header-right">
           <button
@@ -361,6 +491,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
                     isLocal={p.isLocal}
                     videoOn={p.videoOn}
                     audioOn={p.audioOn}
+                    externalVideoRef={p.isLocal ? videoRef : undefined}
                   />
                 </div>
               ))}
@@ -376,6 +507,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
                     isLocal={spotlightUser.isLocal}
                     videoOn={spotlightUser.videoOn}
                     audioOn={spotlightUser.audioOn}
+                    externalVideoRef={spotlightUser.isLocal ? videoRef : undefined}
                   />
                 )}
               </div>
@@ -389,6 +521,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
                       isLocal={p.isLocal}
                       videoOn={p.videoOn}
                       audioOn={p.audioOn}
+                      externalVideoRef={p.isLocal ? videoRef : undefined}
                     />
                   </div>
                 ))}
