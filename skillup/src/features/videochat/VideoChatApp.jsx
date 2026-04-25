@@ -243,6 +243,35 @@ function Room({ userName, roomId, onLeave, onBack }) {
       socket.on("connect", () => {
         setMySocketId(socket.id);
         socket.emit("join-room", { roomId, userName });
+
+        const currentUserId = user?._id ?? null;
+        const basePayload = {
+          sessionId: roomId,
+          sessionIdentifier: roomId,
+          roomId,
+          userId: currentUserId,
+          name: userName,
+        };
+
+        void fetch(`${API_BASE}/attendance/create`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(basePayload),
+        }).catch((error) => {
+          console.warn("[attendance] failed to create room attendance:", error);
+        });
+
+        void fetch(`${API_BASE}/attendance/join`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(basePayload),
+        }).catch((error) => {
+          console.warn("[attendance] failed to register joined user:", error);
+        });
       });
 
       socket.on("room-users", (users) => {
@@ -290,7 +319,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
       closeAll();
       socketRef.current?.disconnect();
     };
-  }, [addPeer, closeAll, closePC, handleAnswer, handleIceCandidate, handleOffer, makeOffer, removePeer, roomId, setPeerMedia, userName]);
+  }, [addPeer, closeAll, closePC, handleAnswer, handleIceCandidate, handleOffer, makeOffer, removePeer, roomId, setPeerMedia, user?._id, userName]);
 
   useEffect(() => {
     if (!videoOn) {
@@ -527,7 +556,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
             <UsersIcon />
             {allParticipants.length} participant{allParticipants.length !== 1 ? "s" : ""}
           </span>
-          <div style={{ fontSize: 12, marginTop: 6, opacity: 0.95 }}>
+          <div className="face-status" style={{ fontSize: 12, marginTop: 6, opacity: 0.95 }}>
             {!faceModelReady
               ? "Loading face model..."
               : attendanceMarked

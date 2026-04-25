@@ -331,46 +331,6 @@
   white-space: nowrap;
 }
 
-.videochat-shell .room-id-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.32rem;
-  max-width: 170px;
-  padding: 0.3rem 0.35rem 0.3rem 0.62rem;
-  border-radius: 999px;
-  border: 1px solid var(--vc-border);
-  background: hsl(var(--muted));
-  color: var(--vc-text-muted);
-  font-size: 0.74rem;
-  font-weight: 600;
-}
-
-.videochat-shell .room-id-pill > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.videochat-shell .copy-btn {
-  width: 1.55rem;
-  height: 1.55rem;
-  border-radius: 999px;
-  border: 1px solid var(--vc-border);
-  background: hsl(var(--card));
-  color: var(--vc-text-muted);
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-}
-
-.videochat-shell .copy-btn:hover {
-  color: hsl(var(--primary));
-}
-
-.videochat-shell .copy-btn svg {
-  width: 0.78rem;
-  height: 0.78rem;
-}
-
 .videochat-shell .participant-count {
   display: inline-flex;
   align-items: center;
@@ -909,6 +869,11 @@
     font-size: 0.92rem;
   }
 
+  .videochat-shell .room-id-pill,
+  .videochat-shell .copy-btn {
+    display: none !important;
+  }
+
   .videochat-shell .back-nav-btn-inline span {
     display: none;
   }
@@ -924,6 +889,11 @@
   }
 
   .videochat-shell .participant-count {
+    display: inline-flex;
+    font-size: 0.72rem;
+  }
+
+  .videochat-shell .face-status {
     display: none;
   }
 
