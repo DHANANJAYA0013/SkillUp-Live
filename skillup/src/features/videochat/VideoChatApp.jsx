@@ -552,6 +552,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
           <div className="header-logo">SkillBridge</div>
         </div>
         <div className="header-center">
+          <span className="mobile-brand">SkillBridge</span>
           <span className="participant-count">
             <UsersIcon />
             {allParticipants.length} participant{allParticipants.length !== 1 ? "s" : ""}
