@@ -120,9 +120,9 @@ function Room({ userName, roomId, onLeave, onBack }) {
   const [audioOn, setAudioOn] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
   const [unread, setUnread] = useState(0);
-  const [copyFeedback, setCopyFeedback] = useState(false);
   const [layout, setLayout] = useState("grid");
   const [spotlightId, setSpotlightId] = useState(null);
+  const [faceModelReady, setFaceModelReady] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
   const [attendanceMarked, setAttendanceMarked] = useState(false);
   const [localVideoReady, setLocalVideoReady] = useState(false);
@@ -170,9 +170,13 @@ function Room({ userName, roomId, onLeave, onBack }) {
   useEffect(() => {
     console.log("[face-api] Room mounted. Preparing TinyFaceDetector model load.");
     let cancelled = false;
+    let retryTimer;
 
     const loadFaceDetectionModels = async () => {
+      if (cancelled) return;
+
       if (faceModelsLoadedRef.current) {
+        setFaceModelReady(true);
         console.log("[face-api] TinyFaceDetector already loaded. Skipping.");
         return;
       }
@@ -183,11 +187,16 @@ function Room({ userName, roomId, onLeave, onBack }) {
         await faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL);
         if (!cancelled) {
           faceModelsLoadedRef.current = true;
+          setFaceModelReady(true);
           console.log("[face-api] TinyFaceDetector model loaded successfully.");
         }
       } catch (error) {
-        // Keep video chat flow unaffected if models are missing or still being added.
-        console.warn("[face-api] TinyFaceDetector model load failed:", error);
+        if (!cancelled) {
+          console.warn("[face-api] TinyFaceDetector model load failed. Retrying in 3s:", error);
+          retryTimer = window.setTimeout(() => {
+            void loadFaceDetectionModels();
+          }, 3000);
+        }
       }
     };
 
@@ -195,6 +204,9 @@ function Room({ userName, roomId, onLeave, onBack }) {
 
     return () => {
       cancelled = true;
+      if (retryTimer) {
+        window.clearTimeout(retryTimer);
+      }
       console.log("[face-api] Room unmounted. Face model loader cleanup done.");
     };
   }, []);
@@ -305,7 +317,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
       try {
         const detections = await faceapi.detectAllFaces(
           videoElement,
-          new faceapi.TinyFaceDetectorOptions()
+          new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.3 })
         );
 
         if (!cancelled) {
@@ -362,8 +374,8 @@ function Room({ userName, roomId, onLeave, onBack }) {
       return;
     }
 
-    const userId = user?._id;
-    if (!roomId || !userId || !userName) return;
+    const userId = user?._id ?? null;
+    if (!roomId || !userName) return;
 
     attendanceRequestInFlightRef.current = true;
 
@@ -480,13 +492,6 @@ function Room({ userName, roomId, onLeave, onBack }) {
     socketRef.current?.emit("chat-message", { message: msg });
   }, []);
 
-  const copyRoomId = () => {
-    navigator.clipboard.writeText(roomId).then(() => {
-      setCopyFeedback(true);
-      setTimeout(() => setCopyFeedback(false), 2000);
-    });
-  };
-
   const openChat = () => {
     setChatOpen(true);
     setUnread(0);
@@ -516,12 +521,6 @@ function Room({ userName, roomId, onLeave, onBack }) {
             <span>Back</span>
           </button>
           <div className="header-logo">SkillBridge</div>
-          <div className="room-id-pill">
-            <span>{roomId}</span>
-            <button onClick={copyRoomId} className="copy-btn" title="Copy Room ID">
-              {copyFeedback ? <CheckIcon /> : <CopyIcon />}
-            </button>
-          </div>
         </div>
         <div className="header-center">
           <span className="participant-count">
@@ -529,7 +528,13 @@ function Room({ userName, roomId, onLeave, onBack }) {
             {allParticipants.length} participant{allParticipants.length !== 1 ? "s" : ""}
           </span>
           <div style={{ fontSize: 12, marginTop: 6, opacity: 0.95 }}>
-            {attendanceMarked ? "Face Detected - Attendance Marked" : "Detecting Face..."}
+            {!faceModelReady
+              ? "Loading face model..."
+              : attendanceMarked
+              ? "Face Detected - Attendance Marked"
+              : faceDetected
+                ? "Face detected - Marking attendance..."
+                : "Detecting Face..."}
           </div>
         </div>
         <div className="header-right">
@@ -719,21 +724,6 @@ function ArrowIcon() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
       <line x1="5" y1="12" x2="19" y2="12" />
       <polyline points="12 5 19 12 12 19" />
-    </svg>
-  );
-}
-function CopyIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <rect x="9" y="9" width="13" height="13" rx="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-    </svg>
-  );
-}
-function CheckIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-      <polyline points="20 6 9 17 4 12" />
     </svg>
   );
 }
