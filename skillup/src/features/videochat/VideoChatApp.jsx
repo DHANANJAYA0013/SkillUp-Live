@@ -9,9 +9,20 @@ import VideoTile from "./VideoTile";
 import ChatPanel from "./ChatPanel";
 import "./videochat.css";
 
-const SIGNAL_SERVER = import.meta.env.VITE_SIGNAL_SERVER_URL || "http://localhost:4000";
-// Files in public/models are served at /models by Vite.
-const FACE_MODEL_URL = "/models";
+const resolveSignalServerUrl = () => {
+  const explicitSignalServer = import.meta.env.VITE_SIGNAL_SERVER_URL;
+  if (explicitSignalServer) return explicitSignalServer;
+
+  if (typeof API_BASE === "string" && API_BASE.startsWith("http")) {
+    return API_BASE.replace(/\/api\/?$/, "");
+  }
+
+  return "http://localhost:4000";
+};
+
+const SIGNAL_SERVER = resolveSignalServerUrl();
+// Files in public/models are served from BASE_URL + models.
+const FACE_MODEL_URL = `${import.meta.env.BASE_URL}models`;
 
 function Lobby({ onJoin, onBack }) {
   const [name, setName] = useState("");
@@ -114,6 +125,9 @@ function Room({ userName, roomId, onLeave, onBack }) {
   const [spotlightId, setSpotlightId] = useState(null);
   const [faceDetected, setFaceDetected] = useState(false);
   const [attendanceMarked, setAttendanceMarked] = useState(false);
+  const [localVideoReady, setLocalVideoReady] = useState(false);
+  const [attendanceAttemptToken, setAttendanceAttemptToken] = useState(0);
+  const attendanceRequestInFlightRef = useRef(false);
 
   const addPeer = useCallback((id, info) => {
     setPeers((prev) => ({
@@ -275,14 +289,22 @@ function Room({ userName, roomId, onLeave, onBack }) {
     let cancelled = false;
 
     const detectFaces = async () => {
-      if (!videoRef.current || !localStreamRef.current || !faceModelsLoadedRef.current) {
+      const videoElement = videoRef.current;
+
+      if (
+        !videoElement ||
+        !localStreamRef.current ||
+        !faceModelsLoadedRef.current ||
+        !localVideoReady ||
+        videoElement.readyState < 2
+      ) {
         if (!cancelled) setFaceDetected(false);
         return;
       }
 
       try {
         const detections = await faceapi.detectAllFaces(
-          videoRef.current,
+          videoElement,
           new faceapi.TinyFaceDetectorOptions()
         );
 
@@ -305,41 +327,100 @@ function Room({ userName, roomId, onLeave, onBack }) {
       cancelled = true;
       window.clearInterval(detectionInterval);
     };
+  }, [videoOn, localStream, localVideoReady]);
+
+  const handleLocalVideoReady = useCallback(() => {
+    const ready = Boolean(videoRef.current && videoRef.current.readyState >= 2);
+    if (ready) {
+      setLocalVideoReady(true);
+      console.log("[face-api] Local webcam video is ready for face detection.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!videoOn || !localStream) {
+      setLocalVideoReady(false);
+      return;
+    }
+
+    const currentVideo = videoRef.current;
+    if (currentVideo && currentVideo.readyState >= 2) {
+      setLocalVideoReady(true);
+    }
   }, [videoOn, localStream]);
 
   useEffect(() => {
-    if (!(faceDetected === true && attendanceMarked === false)) return;
+    if (faceDetected && !attendanceMarked) {
+      setAttendanceAttemptToken((prev) => prev + 1);
+    }
+  }, [faceDetected, attendanceMarked]);
+
+  useEffect(() => {
+    if (!(faceDetected === true && attendanceMarked === false && attendanceAttemptToken > 0)) return;
+
+    if (attendanceRequestInFlightRef.current) {
+      return;
+    }
 
     const userId = user?._id;
     if (!roomId || !userId || !userName) return;
 
-    // Flip immediately so this API is called only once per session render lifecycle.
-    setAttendanceMarked(true);
+    attendanceRequestInFlightRef.current = true;
 
     let cancelled = false;
+    let retryTimer;
 
     const markAttendance = async () => {
+      const payload = {
+        sessionId: roomId,
+        sessionIdentifier: roomId,
+        userId,
+        name: userName,
+      };
+
+      console.log("[attendance] sending mark request", {
+        endpoint: `${API_BASE}/attendance/mark`,
+        payload,
+      });
+
       try {
         const res = await fetch(`${API_BASE}/attendance/mark`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            sessionId: roomId,
-            userId,
-            name: userName,
-          }),
+          body: JSON.stringify(payload),
         });
 
         const data = await res.json().catch(() => null);
         const alreadyMarked = data && typeof data === "object" && "message" in data && data.message === "Already marked";
 
-        if (!cancelled && !(res.ok || alreadyMarked)) {
-          console.warn("[attendance] mark request returned non-success response:", data);
+        if (!cancelled && (res.ok || alreadyMarked)) {
+          setAttendanceMarked(true);
+          console.log("[attendance] mark request succeeded:", data);
+          return;
+        }
+
+        if (!cancelled) {
+          console.warn("[attendance] mark request returned non-success response:", {
+            status: res.status,
+            data,
+          });
+          retryTimer = window.setTimeout(() => {
+            setAttendanceAttemptToken((prev) => prev + 1);
+          }, 5000);
         }
       } catch (error) {
-        console.warn("[attendance] failed to mark attendance:", error);
+        if (!cancelled) {
+          console.warn("[attendance] failed to mark attendance:", error);
+          retryTimer = window.setTimeout(() => {
+            setAttendanceAttemptToken((prev) => prev + 1);
+          }, 5000);
+        }
+      } finally {
+        if (!cancelled) {
+          attendanceRequestInFlightRef.current = false;
+        }
       }
     };
 
@@ -347,8 +428,12 @@ function Room({ userName, roomId, onLeave, onBack }) {
 
     return () => {
       cancelled = true;
+      attendanceRequestInFlightRef.current = false;
+      if (retryTimer) {
+        window.clearTimeout(retryTimer);
+      }
     };
-  }, [attendanceMarked, faceDetected, roomId, user?._id, userName]);
+  }, [attendanceAttemptToken, attendanceMarked, faceDetected, roomId, user?._id, userName]);
 
   const toggleVideo = useCallback(async () => {
     const stream = localStreamRef.current;
@@ -492,6 +577,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
                     videoOn={p.videoOn}
                     audioOn={p.audioOn}
                     externalVideoRef={p.isLocal ? videoRef : undefined}
+                    onVideoReady={p.isLocal ? handleLocalVideoReady : undefined}
                   />
                 </div>
               ))}
@@ -508,6 +594,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
                     videoOn={spotlightUser.videoOn}
                     audioOn={spotlightUser.audioOn}
                     externalVideoRef={spotlightUser.isLocal ? videoRef : undefined}
+                    onVideoReady={spotlightUser.isLocal ? handleLocalVideoReady : undefined}
                   />
                 )}
               </div>
@@ -522,6 +609,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
                       videoOn={p.videoOn}
                       audioOn={p.audioOn}
                       externalVideoRef={p.isLocal ? videoRef : undefined}
+                      onVideoReady={p.isLocal ? handleLocalVideoReady : undefined}
                     />
                   </div>
                 ))}

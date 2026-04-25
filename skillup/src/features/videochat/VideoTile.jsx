@@ -1,6 +1,15 @@
 import React, { useEffect, useRef } from "react";
 
-export default function VideoTile({ stream, name, muted = false, isLocal = false, videoOn, audioOn, externalVideoRef }) {
+export default function VideoTile({
+  stream,
+  name,
+  muted = false,
+  isLocal = false,
+  videoOn,
+  audioOn,
+  externalVideoRef,
+  onVideoReady,
+}) {
   const internalVideoRef = useRef(null);
   const videoRef = externalVideoRef || internalVideoRef;
 
@@ -14,7 +23,16 @@ export default function VideoTile({ stream, name, muted = false, isLocal = false
     <div className="video-tile" data-local={isLocal}>
       <div className="video-wrap">
         {stream && videoOn ? (
-          <video ref={videoRef} autoPlay playsInline muted={muted} className="tile-video" />
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted={muted}
+            className="tile-video"
+            onLoadedMetadata={onVideoReady}
+            onLoadedData={onVideoReady}
+            onCanPlay={onVideoReady}
+          />
         ) : (
           <div className="tile-avatar">
             <span>{name?.[0]?.toUpperCase() || "?"}</span>
