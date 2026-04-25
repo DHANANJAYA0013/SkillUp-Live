@@ -1,44 +1,128 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const router = express.Router();
 const Attendance = require("../models/Attendance");
 const User = require("../models/User");
+const Session = require("../models/Session");
+
+const getTodayDateString = () => new Date().toISOString().split("T")[0];
+const normalizeName = (name) => (typeof name === "string" ? name.trim() : "");
+const hasValidObjectId = (value) => typeof value === "string" && mongoose.Types.ObjectId.isValid(value);
+
+const participantMatches = (participant, userId, normalizedName) => {
+  if (hasValidObjectId(userId) && participant.userId) {
+    return participant.userId.toString() === userId;
+  }
+
+  return (
+    typeof participant.name === "string" &&
+    participant.name.trim().toLowerCase() === normalizedName.toLowerCase()
+  );
+};
+
+const recordMatches = (record, userId, normalizedName) => {
+  if (hasValidObjectId(userId) && record.userId) {
+    return record.userId.toString() === userId;
+  }
+
+  return typeof record.name === "string" && record.name.trim().toLowerCase() === normalizedName.toLowerCase();
+};
+
+const resolveSessionByIdOrRoomId = async (identifier) => {
+  if (!identifier) return null;
+
+  let session = null;
+
+  if (mongoose.Types.ObjectId.isValid(identifier)) {
+    session = await Session.findById(identifier);
+  }
+
+  if (!session) {
+    session = await Session.findOne({ roomId: identifier });
+  }
+
+  return session;
+};
+
+const findOrCreateSessionAttendance = async ({ requestedSessionIdentifier, mentorId }) => {
+  const today = getTodayDateString();
+  const session = await resolveSessionByIdOrRoomId(requestedSessionIdentifier);
+  const roomId = session?.roomId || requestedSessionIdentifier;
+
+  const query = session ? { sessionId: session._id } : { roomId, date: today };
+
+  let attendance = await Attendance.findOne(query);
+
+  if (!attendance) {
+    const resolvedMentorId = mentorId || session?.mentor || null;
+    attendance = await Attendance.create({
+      sessionId: session?._id,
+      roomId,
+      mentorId: resolvedMentorId,
+      date: today,
+      records: [],
+      waitingUsers: [],
+      faceDetectedUsers: [],
+      faceNotDetectedUsers: [],
+    });
+
+    console.info("[attendance/create] auto-created attendance", {
+      attendanceId: String(attendance._id),
+      sessionId: session?._id ? String(session._id) : null,
+      roomId,
+      mentorId: resolvedMentorId ? String(resolvedMentorId) : null,
+      date: today,
+    });
+  } else {
+    let touched = false;
+
+    if (!attendance.roomId) {
+      attendance.roomId = roomId;
+      touched = true;
+    }
+
+    if (session?._id && !attendance.sessionId) {
+      attendance.sessionId = session._id;
+      touched = true;
+    }
+
+    if (!attendance.mentorId && (mentorId || session?.mentor)) {
+      attendance.mentorId = mentorId || session.mentor;
+      touched = true;
+    }
+
+    if (!attendance.faceNotDetectedUsers) {
+      attendance.faceNotDetectedUsers = [];
+      touched = true;
+    }
+
+    if (touched) {
+      await attendance.save();
+    }
+  }
+
+  return { attendance, session, roomId };
+};
 
 // POST /attendance/create
 // Create or get today's attendance for a session
 router.post("/create", async (req, res) => {
   try {
-    const { sessionId, mentorId } = req.body;
+    const { sessionId, sessionIdentifier, mentorId } = req.body;
+    const requestedSessionIdentifier = sessionIdentifier || sessionId;
 
-    if (!sessionId || !mentorId) {
+    if (!requestedSessionIdentifier) {
       return res.status(400).json({
-        error: "sessionId and mentorId are required",
+        error: "sessionId or sessionIdentifier is required",
       });
     }
 
-    // Get today's date as string (YYYY-MM-DD)
-    const today = new Date().toISOString().split("T")[0];
-
-    // Check if attendance already exists for this session today
-    const existingAttendance = await Attendance.findOne({
-      sessionId,
+    const { attendance } = await findOrCreateSessionAttendance({
+      requestedSessionIdentifier,
       mentorId,
-      date: today,
     });
 
-    if (existingAttendance) {
-      return res.status(200).json(existingAttendance);
-    }
-
-    // Create new attendance document with empty records array
-    const newAttendance = new Attendance({
-      sessionId,
-      mentorId,
-      date: today,
-      records: [],
-    });
-
-    await newAttendance.save();
-    res.status(201).json(newAttendance);
+    res.status(200).json(attendance);
   } catch (error) {
     console.error("Error creating attendance:", error);
     res.status(500).json({
@@ -47,33 +131,112 @@ router.post("/create", async (req, res) => {
   }
 });
 
+// POST /attendance/join
+// Register a user in waiting list when they enter a room/session.
+router.post("/join", async (req, res) => {
+  try {
+    const { sessionId, sessionIdentifier, roomId, mentorId, userId, name } = req.body;
+    const requestedSessionIdentifier = sessionIdentifier || sessionId || roomId;
+    const normalizedName = normalizeName(name);
+
+    if (!requestedSessionIdentifier || !normalizedName) {
+      return res.status(400).json({
+        error: "sessionId/sessionIdentifier/roomId and name are required",
+      });
+    }
+
+    const { attendance, roomId: resolvedRoomId } = await findOrCreateSessionAttendance({
+      requestedSessionIdentifier,
+      mentorId,
+    });
+
+    const participant = { name: normalizedName };
+    if (hasValidObjectId(userId)) {
+      participant.userId = userId;
+    }
+
+    const isAlreadyDetected = attendance.faceDetectedUsers.some((entry) =>
+      participantMatches(entry, userId, normalizedName)
+    );
+
+    const waitingIndex = attendance.waitingUsers.findIndex((entry) =>
+      participantMatches(entry, userId, normalizedName)
+    );
+
+    if (!isAlreadyDetected && waitingIndex === -1) {
+      attendance.waitingUsers.push(participant);
+    }
+
+    const notDetectedIndex = (attendance.faceNotDetectedUsers || []).findIndex((entry) =>
+      participantMatches(entry, userId, normalizedName)
+    );
+    if (!isAlreadyDetected && notDetectedIndex === -1) {
+      attendance.faceNotDetectedUsers.push(participant);
+    }
+
+    const recordIndex = attendance.records.findIndex((record) =>
+      recordMatches(record, userId, normalizedName)
+    );
+
+    if (recordIndex === -1) {
+      const nextRecord = {
+        name: normalizedName,
+        status: isAlreadyDetected ? "present" : "waiting",
+        time: null,
+        faceDetected: isAlreadyDetected,
+      };
+
+      if (hasValidObjectId(userId)) {
+        nextRecord.userId = userId;
+      }
+
+      attendance.records.push(nextRecord);
+    } else if (!isAlreadyDetected) {
+      attendance.records[recordIndex].status = "waiting";
+      attendance.records[recordIndex].faceDetected = false;
+      attendance.records[recordIndex].time = null;
+    }
+
+    await attendance.save();
+
+    res.status(200).json({
+      message: "User registered in waiting list",
+      roomId: resolvedRoomId,
+      attendance,
+    });
+  } catch (error) {
+    console.error("Error registering join attendance:", error);
+    res.status(500).json({
+      error: error.message || "Failed to register joined user",
+    });
+  }
+});
+
 // POST /attendance/mark
 // Mark attendance for a user
 router.post("/mark", async (req, res) => {
   try {
-    const { sessionId, userId, name } = req.body;
+    const { sessionId, sessionIdentifier, roomId, mentorId, userId, name } = req.body;
+    const requestedSessionIdentifier = sessionIdentifier || sessionId || roomId;
+    const normalizedName = normalizeName(name);
+    const hasValidUserId = hasValidObjectId(userId);
 
-    if (!sessionId || !userId || !name) {
+    if (!requestedSessionIdentifier || !normalizedName) {
       return res.status(400).json({
-        error: "sessionId, userId, and name are required",
+        error: "sessionId/sessionIdentifier/roomId and name are required",
       });
     }
 
-    // Find attendance document by sessionId
-    const attendance = await Attendance.findOne({ sessionId });
+    const { attendance, session, roomId: resolvedRoomId } = await findOrCreateSessionAttendance({
+      requestedSessionIdentifier,
+      mentorId,
+    });
 
-    if (!attendance) {
-      return res.status(404).json({
-        error: "Attendance record not found for this session",
-      });
-    }
-
-    // Check if user already exists in records
-    const userExists = attendance.records.some(
-      (record) => record.userId && record.userId.toString() === userId
+    const alreadyDetected = attendance.faceDetectedUsers.some((entry) =>
+      participantMatches(entry, userId, normalizedName)
     );
 
-    if (userExists) {
+    if (alreadyDetected) {
       return res.status(400).json({
         message: "Already marked",
       });
@@ -88,15 +251,61 @@ router.post("/mark", async (req, res) => {
     });
 
     // Push new record
-    attendance.records.push({
-      userId,
-      name,
-      status: "present",
-      time: currentTime,
-      faceDetected: true,
-    });
+    const waitingIndex = attendance.waitingUsers.findIndex((entry) =>
+      participantMatches(entry, userId, normalizedName)
+    );
+
+    if (waitingIndex !== -1) {
+      attendance.waitingUsers.splice(waitingIndex, 1);
+    }
+
+    const notDetectedIndex = (attendance.faceNotDetectedUsers || []).findIndex((entry) =>
+      participantMatches(entry, userId, normalizedName)
+    );
+    if (notDetectedIndex !== -1) {
+      attendance.faceNotDetectedUsers.splice(notDetectedIndex, 1);
+    }
+
+    const nextParticipant = { name: normalizedName };
+    if (hasValidUserId) {
+      nextParticipant.userId = userId;
+    }
+
+    attendance.faceDetectedUsers.push(nextParticipant);
+
+    const existingRecordIndex = attendance.records.findIndex((record) =>
+      recordMatches(record, userId, normalizedName)
+    );
+
+    if (existingRecordIndex === -1) {
+      const nextRecord = {
+        name: normalizedName,
+        status: "present",
+        time: currentTime,
+        faceDetected: true,
+      };
+
+      if (hasValidUserId) {
+        nextRecord.userId = userId;
+      }
+
+      attendance.records.push(nextRecord);
+    } else {
+      attendance.records[existingRecordIndex].status = "present";
+      attendance.records[existingRecordIndex].time = currentTime;
+      attendance.records[existingRecordIndex].faceDetected = true;
+    }
 
     await attendance.save();
+
+    console.info("[attendance/mark] marked present", {
+      attendanceId: String(attendance._id),
+      sessionId: session?._id ? String(session._id) : null,
+      roomId: resolvedRoomId,
+      userId: hasValidUserId ? userId : null,
+      userName: normalizedName,
+      recordCount: attendance.records.length,
+    });
 
     res.status(200).json({
       message: "Attendance marked successfully",
@@ -150,16 +359,21 @@ router.get("/mentor/:mentorId", async (req, res) => {
 // Get present and absent users for a session
 router.get("/session/:sessionId", async (req, res) => {
   try {
-    const { sessionId } = req.params;
+    const { sessionId: requestedSessionIdentifier } = req.params;
 
-    if (!sessionId) {
+    if (!requestedSessionIdentifier) {
       return res.status(400).json({
         error: "sessionId is required",
       });
     }
 
-    // Find attendance document by sessionId
-    const attendance = await Attendance.findOne({ sessionId });
+    const session = await resolveSessionByIdOrRoomId(requestedSessionIdentifier);
+    const attendanceQuery = session
+      ? { sessionId: session._id }
+      : { roomId: requestedSessionIdentifier };
+
+    // Find latest attendance document for session or room.
+    const attendance = await Attendance.findOne(attendanceQuery).sort({ date: -1, createdAt: -1 });
 
     if (!attendance) {
       return res.status(404).json({
@@ -192,6 +406,9 @@ router.get("/session/:sessionId", async (req, res) => {
       data: {
         present,
         absent,
+        waitingUsers: attendance.waitingUsers,
+        faceDetectedUsers: attendance.faceDetectedUsers,
+        faceNotDetectedUsers: attendance.faceNotDetectedUsers || [],
       },
     });
   } catch (error) {

@@ -1,6 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const Session = require("../models/Session");
+const Attendance = require("../models/Attendance");
 const { verifyToken, requireRole } = require("../middleware/auth");
 
 const router = express.Router();
@@ -95,6 +96,23 @@ router.post("/", verifyToken, requireRole("mentor"), async (req, res) => {
       roomId,
       status: "scheduled",
     });
+
+    await Attendance.findOneAndUpdate(
+      { sessionId: session._id },
+      {
+        $setOnInsert: {
+          sessionId: session._id,
+          roomId: session.roomId,
+          mentorId: req.user._id,
+          date: session.date,
+          records: [],
+          waitingUsers: [],
+          faceDetectedUsers: [],
+          faceNotDetectedUsers: [],
+        },
+      },
+      { upsert: true, new: true }
+    );
 
     return res.status(201).json({ session });
   } catch (err) {

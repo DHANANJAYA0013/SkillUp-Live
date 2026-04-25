@@ -11,18 +11,43 @@ const attendanceRoutes = require("./routes/attendance");
 
 const app = express();
 
-const allowedOrigins = (process.env.CLIENT_URLS || process.env.CLIENT_URL || "http://localhost:8080")
+const envOrigins = (process.env.CLIENT_URLS || process.env.CLIENT_URL || "")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
+const localOrigins = ["http://localhost:8080", "http://localhost:5173", "http://localhost:4173"];
+const allowVercelPreviews = process.env.ALLOW_VERCEL_PREVIEWS !== "false";
+const allowedOrigins = Array.from(new Set([...localOrigins, ...envOrigins]));
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+
+  if (allowVercelPreviews) {
+    try {
+      const parsed = new URL(origin);
+      if (parsed.protocol === "https:" && parsed.hostname.endsWith(".vercel.app")) {
+        return true;
+      }
+    } catch {
+      // Ignore malformed origin strings and let default branch block it.
+    }
+  }
+
+  return false;
+};
 
 const corsOptions = {
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    if (isAllowedOrigin(origin)) return callback(null, true);
+    console.warn("[cors] blocked origin", origin);
     return callback(new Error(`CORS blocked origin: ${origin}`));
   },
   credentials: true,
 };
+
+console.log("[cors] allowed origins:", allowedOrigins);
+console.log("[cors] allow vercel previews:", allowVercelPreviews);
 
 app.use(
   cors(corsOptions)

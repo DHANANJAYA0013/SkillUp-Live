@@ -14,7 +14,7 @@ const attendanceRecordSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["present", "absent"],
+      enum: ["waiting", "present", "absent"],
       required: true,
     },
     time: {
@@ -29,18 +29,44 @@ const attendanceRecordSchema = new mongoose.Schema(
   { _id: true, timestamps: false }
 );
 
+const participantSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+    },
+    name: {
+      type: String,
+      trim: true,
+      required: true,
+    },
+    joinedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: true, timestamps: false }
+);
+
 const attendanceSchema = new mongoose.Schema(
   {
     sessionId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Session",
+      required: false,
+      index: true,
+    },
+    roomId: {
+      type: String,
+      trim: true,
       required: true,
       index: true,
     },
     mentorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: false,
       index: true,
     },
     date: {
@@ -48,6 +74,18 @@ const attendanceSchema = new mongoose.Schema(
       required: true,
     },
     records: [attendanceRecordSchema],
+    waitingUsers: {
+      type: [participantSchema],
+      default: [],
+    },
+    faceDetectedUsers: {
+      type: [participantSchema],
+      default: [],
+    },
+    faceNotDetectedUsers: {
+      type: [participantSchema],
+      default: [],
+    },
   },
   { timestamps: true }
 );
@@ -55,5 +93,6 @@ const attendanceSchema = new mongoose.Schema(
 // Compound index for efficient queries
 attendanceSchema.index({ sessionId: 1, mentorId: 1 });
 attendanceSchema.index({ date: 1 });
+attendanceSchema.index({ roomId: 1, date: 1 });
 
 module.exports = mongoose.model("Attendance", attendanceSchema);
