@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import * as THREE from "three";
+import Footer from "@/components/Footer";
 
 /* ─────────────────────────────────────────────
    COLOUR TOKENS
@@ -1585,7 +1586,9 @@ export default function App() {
         <PageTransition pageKey={activePage}>
           {renderPage()}
         </PageTransition>
+        <Footer />
       </div>
+
     </>
   );
 }

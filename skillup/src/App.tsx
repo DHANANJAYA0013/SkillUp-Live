@@ -64,8 +64,10 @@ const App = () => (
           <AuthProvider>
             <Routes>
               <Route path="/index" element={<Index />} />
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/landing" element={<LandingPage />} />
+              {/* <Route path="/" element={<LandingPage />} />
+              <Route path="/landing" element={<LandingPage />} /> */}
+              <Route path="/" element={<Index />} />
+              <Route path="/landing" element={<Index/>} />
               <Route path="/start-live" element={<LiveSplashPage />} />
               <Route path="/live-session" element={<LiveSessionPage />} />
               <Route path="/room/:roomId" element={<LiveSessionPage />} />
