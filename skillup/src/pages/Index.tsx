@@ -102,7 +102,7 @@ function Navbar({ activePage, setPage }) {
           </svg>
         </div>
         <span style={{ fontFamily: "'Sora', sans-serif", fontWeight: 700, fontSize: 18, color: C.text, letterSpacing: -0.5 }}>
-          BuildSphere
+          SkillBridge
         </span>
       </div>
 
@@ -1435,7 +1435,7 @@ function HomePage() {
           fontSize: 16, lineHeight: 1.7, color: C.muted, margin: "0 0 36px",
           fontFamily: "'DM Sans', sans-serif", maxWidth: isTablet ? "100%" : 340,
         }}>
-          BuildSphere is the all-in-one platform to bring your ideas to life with immersive 3D experiences and modern tools.
+          SkillBridge is the all-in-one platform to bring your ideas to life with immersive 3D experiences and modern tools.
         </p>
 
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center" }}>
