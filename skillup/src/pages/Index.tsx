@@ -456,13 +456,16 @@ function AboutPage() {
           <div style={{ position: "relative", flexShrink: 0 }}>
             <div style={{
               width: 110, height: 110, borderRadius: "50%",
-              background: `linear-gradient(135deg, ${C.purple}, ${C.indigo})`,
               display: "flex", alignItems: "center", justifyContent: "center",
               boxShadow: `0 8px 32px rgba(124,58,237,0.35)`,
+              border: "3px solid rgba(17, 24, 39, 0.9)",
+              overflow: "hidden",
             }}>
-              <svg width="52" height="52" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth="1.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-              </svg>
+              <img
+                src="/logo 3.0.png"
+                alt="Developer avatar"
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
             </div>
             <div style={{
               position: "absolute", bottom: 4, right: 4,
@@ -485,7 +488,7 @@ function AboutPage() {
               MCA Student & Full Stack Developer
             </p>
             <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: C.muted, lineHeight: 1.7, maxWidth: 480 }}>
-              Passionate about building modern, user-friendly web applications that bridge education and technology. Learning Hub is built with a vision to make programming accessible to everyone.
+              Passionate about building modern, user-friendly web applications that bridge education and technology. SkillBridge is developed with a vision to connect mentors and learners through live interactive sessions and meaningful skill-sharing experiences.
             </p>
           </div>
           {/* Mini 3D */}
