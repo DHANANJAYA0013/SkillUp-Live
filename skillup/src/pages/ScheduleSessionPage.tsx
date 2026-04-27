@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
+import Particles, { initParticlesEngine } from "@tsparticles/react";
+import { loadSlim } from "@tsparticles/slim";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,6 +11,119 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/features/authsystem/AuthContext";
 import { API_BASE } from "@/features/authsystem/config";
+
+const C = {
+  bg: "#F0EEFF",
+};
+
+const particlesOptions = {
+  background: {
+    color: {
+      value: "transparent",
+    },
+  },
+  fpsLimit: 60,
+  interactivity: {
+    events: {
+      onHover: {
+        enable: true,
+        mode: "grab" as const,
+      },
+      resize: {
+        enable: true,
+      },
+    },
+    modes: {
+      grab: {
+        distance: 140,
+        links: {
+          opacity: 0.3,
+        },
+      },
+    },
+  },
+  particles: {
+    color: {
+      value: "#6b8cff",
+    },
+    links: {
+      color: "#8aa6ff",
+      distance: 140,
+      enable: true,
+      opacity: 0.2,
+      width: 1,
+    },
+    move: {
+      direction: "none" as const,
+      enable: true,
+      outModes: {
+        default: "out" as const,
+      },
+      random: false,
+      speed: 0.8,
+      straight: false,
+    },
+    number: {
+      density: {
+        enable: true,
+      },
+      value: 55,
+    },
+    opacity: {
+      value: 0.22,
+    },
+    shape: {
+      type: "circle" as const,
+    },
+    size: {
+      value: { min: 1, max: 3 },
+    },
+  },
+  detectRetina: true,
+};
+
+function FloatingOrbs() {
+  return (
+    <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, overflow: "hidden" }}>
+      <div
+        style={{
+          position: "absolute",
+          width: 500,
+          height: 500,
+          borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(167,139,250,0.18) 0%, transparent 70%)",
+          top: "-10%",
+          right: "-5%",
+          animation: "orbFloat1 8s ease-in-out infinite",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          width: 380,
+          height: 380,
+          borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(99,102,241,0.13) 0%, transparent 70%)",
+          bottom: "5%",
+          left: "-8%",
+          animation: "orbFloat2 10s ease-in-out infinite",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          width: 260,
+          height: 260,
+          borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(196,181,253,0.15) 0%, transparent 70%)",
+          top: "45%",
+          left: "40%",
+          animation: "orbFloat3 7s ease-in-out infinite",
+        }}
+      />
+    </div>
+  );
+}
 
 const parseApiResponse = async (res: Response) => {
   const raw = await res.text();
@@ -30,6 +145,15 @@ const ScheduleSessionPage = () => {
   const [sessionDuration, setSessionDuration] = useState("");
   const [sessionTopic, setSessionTopic] = useState("");
   const [creatingSession, setCreatingSession] = useState(false);
+  const [particlesReady, setParticlesReady] = useState(false);
+
+  useEffect(() => {
+    initParticlesEngine(async (engine) => {
+      await loadSlim(engine);
+    }).then(() => {
+      setParticlesReady(true);
+    });
+  }, []);
 
   useEffect(() => {
     if (!authUser) {
@@ -125,8 +249,41 @@ const ScheduleSessionPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
+    <div className="min-h-screen" style={{ background: C.bg }}>
+      <style>{`
+        @keyframes orbFloat1 {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(-30px, 40px) scale(1.08); }
+        }
+        @keyframes orbFloat2 {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(40px, -30px) scale(1.06); }
+        }
+        @keyframes orbFloat3 {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(-20px, -20px) scale(1.05); }
+        }
+      `}</style>
+
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          pointerEvents: "none",
+          zIndex: 0,
+          background: `
+            radial-gradient(ellipse 80% 60% at 80% 30%, rgba(167,139,250,0.16) 0%, transparent 60%),
+            radial-gradient(ellipse 50% 40% at 10% 80%, rgba(99,102,241,0.09) 0%, transparent 60%),
+            ${C.bg}
+          `,
+        }}
+      />
+      <FloatingOrbs />
+      <div className="fixed inset-0 pointer-events-none opacity-70 z-[1]" aria-hidden="true">
+        {particlesReady && <Particles id="schedule-page-particles" className="h-full w-full" options={particlesOptions} />}
+      </div>
+
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6 relative z-10">
         <Button variant="ghost" size="sm" onClick={() => navigate("/profile")}> 
           <ArrowLeft className="w-4 h-4 mr-2" /> Back to Profile
         </Button>

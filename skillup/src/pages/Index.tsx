@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import * as THREE from "three";
 import Footer from "@/components/Footer";
+import { useNavigate } from "react-router-dom";
 
 /* ─────────────────────────────────────────────
    COLOUR TOKENS
@@ -376,7 +377,7 @@ function AboutPage() {
         </svg>
       ),
       title: "Our Mission",
-      text: "Our mission is to simplify programming education by providing clear explanations, structured topics, and an intuitive learning experience that helps beginners understand complex concepts easily.",
+      text: "Our mission is to make skill-sharing simple, accessible, and reliable by providing a platform where mentors can teach live and learners can gain real-time knowledge with verified attendance and active participation.",
     },
     {
       icon: (
@@ -386,7 +387,7 @@ function AboutPage() {
         </svg>
       ),
       title: "Our Vision",
-      text: "Our vision is to create a platform where anyone can learn programming from beginner to advanced level using modern tools and an engaging interface.",
+      text: "Our vision is to build a trusted learning ecosystem where anyone can teach, learn, and grow through live collaboration, transparent participation tracking, and meaningful learning experiences.",
     },
     {
       icon: (
@@ -395,17 +396,17 @@ function AboutPage() {
         </svg>
       ),
       title: "About the Platform",
-      text: "Learning Hub provides organized programming topics such as arrays, strings, object-oriented programming, and data structures. The platform focuses on making learning simple, practical, and visually engaging.",
+      text: "SkillBridge enables mentors to host live sessions while learners attend and interact in real time. Face detection-based attendance ensures genuine participation and improves the effectiveness of online learning.",
     },
   ];
 
   return (
     <div style={{ minHeight: "100vh", paddingBottom: 80 }}>
       <PageHero
-        badge="About Learning Hub"
-        title="Empowering Learning Hub"
+        badge="About SkillBridge"
+        title="Empowering Live Learning"
         accentWord="Learning"
-        subtitle="Learning Hub is a modern platform designed to help students and developers learn programming concepts in a structured and interactive way."
+        subtitle="SkillBridge is a modern live learning platform designed to connect mentors and learners through interactive online sessions and practical skill sharing."
       />
 
       {/* Cards row */}
@@ -505,43 +506,43 @@ function FeaturesPage() {
   const features = [
     {
       icon: <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>,
-      title: "Structured Learning Topics",
-      desc: "Organized programming topics that help users easily navigate and understand different concepts.",
+      title: "Live Session Scheduling",
+      desc: "Mentors can create and schedule live learning sessions with topic details, timing, and session management for better learning organization.",
       color: "#7c3aed",
       bg: "rgba(124,58,237,0.07)",
     },
     {
       icon: <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>,
-      title: "Interactive Interface",
-      desc: "A clean and modern user interface designed to make learning comfortable and engaging.",
+      title: "Mentor & Learner Dashboards",
+      desc: "Separate dashboards help mentors manage sessions and learners track joined classes, attendance, and learning progress easily.",
       color: "#6366f1",
       bg: "rgba(99,102,241,0.07)",
     },
     {
       icon: <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>,
-      title: "Real-Time Communication",
-      desc: "Users can interact and communicate through integrated communication features.",
+      title: "Real-Time Live Interaction",
+      desc: "Learners can join live sessions, ask questions, and interact directly with mentors during classes for a better learning experience.",
       color: "#0ea5e9",
       bg: "rgba(14,165,233,0.07)",
     },
     {
       icon: <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>,
-      title: "Progress Tracking",
-      desc: "Track learning progress and completed topics to stay motivated and on schedule.",
+      title: "Attendance Tracking",
+      desc: "Automatic attendance marking using face detection helps ensure genuine learner participation during live sessions.",
       color: "#10b981",
       bg: "rgba(16,185,129,0.07)",
     },
     {
       icon: <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>,
-      title: "Responsive Design",
-      desc: "The platform works smoothly on desktop, tablet, and mobile devices for learning anywhere.",
+      title: "Multi-Device Access",
+      desc: "The platform works smoothly across desktop, tablet, and mobile devices so learning can happen anytime and anywhere.",
       color: "#f59e0b",
       bg: "rgba(245,158,11,0.07)",
     },
     {
       icon: <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"/></svg>,
-      title: "Modern 3D Interface",
-      desc: "Interactive 3D visual elements create an engaging and modern user experience.",
+      title: "Face Detection Verification",
+      desc: "The system verifies real human presence during live sessions and prevents fake attendance using image or video spoofing checks.",
       color: "#7c3aed",
       bg: "rgba(124,58,237,0.07)",
     },
@@ -551,9 +552,9 @@ function FeaturesPage() {
     <div style={{ minHeight: "100vh", paddingBottom: 80 }}>
       <PageHero
         badge="Platform Features"
-        title="Powerful Features of Learning Hub"
+        title="Powerful Features of SkillBridge"
         accentWord="Features"
-        subtitle="Everything you need to learn programming effectively — structured, interactive, and built for modern learners."
+        subtitle="Everything you need for live skill-sharing, mentor-led learning — built for modern online education."
       />
 
       {/* Features grid */}
@@ -621,7 +622,7 @@ function FeaturesPage() {
               Ready to start learning?
             </h3>
             <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 15, color: C.muted, margin: "0 0 22px", maxWidth: 380 }}>
-              Join thousands of learners who are mastering programming with Learning Hub.
+              Join thousands of learners who are mastering Skills with SkillBridge.
             </p>
             <button style={{
               background: `linear-gradient(135deg, ${C.purple}, ${C.indigo})`, border: "none",
@@ -631,6 +632,7 @@ function FeaturesPage() {
             }}
             onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; }}
             onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; }}
+            onClick={() => { window.location.href = "/auth"; }}
             >Get Started Free →</button>
           </div>
           <div style={{ width: isCompact ? "100%" : 260, height: isCompact ? 170 : "100%", flexShrink: 0 }}>
@@ -647,35 +649,36 @@ function FeaturesPage() {
 ───────────────────────────────────────────── */
 function HowItWorksPage() {
   const { isMobile, isCompact } = useResponsive();
+  const navigate = useNavigate();
   const steps = [
     {
       num: "01",
       title: "Create an Account",
-      desc: "Users sign up and create their personal learning profile. Set your goals, choose your skill level, and get a personalized learning path.",
+      desc: "Users sign up as mentors or learners and create their profiles to start teaching or attending live learning sessions.",
       icon: <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>,
     },
     {
       num: "02",
-      title: "Explore Topics",
-      desc: "Browse various programming topics and select the concepts you want to learn. Choose from arrays, strings, OOP, data structures, and much more.",
+      title: "Schedule or Explore Sessions",
+      desc: "Mentors create live sessions while learners browse available sessions based on skills, topics, and interests.",
       icon: <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>,
     },
     {
       num: "03",
-      title: "Learn Concepts",
-      desc: "Read clear explanations and understand programming concepts with structured examples. Complex topics broken down into digestible lessons.",
+      title: "Join Live Session",
+      desc: "Learners attend live classes where mentors teach in real time using interactive communication and live engagement.",
       icon: <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>,
     },
     {
       num: "04",
-      title: "Practice and Apply",
-      desc: "Practice the learned concepts through hands-on exercises and real-world examples. Reinforce your understanding by building and experimenting.",
+      title: "Face Detection Verification",
+      desc: "The system checks whether a real human face is present during the session and verifies genuine attendance participation.",
       icon: <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>,
     },
     {
       num: "05",
-      title: "Track Progress",
-      desc: "Monitor your learning journey and track completed topics. View statistics, revisit completed lessons, and celebrate your milestones.",
+      title: "Attendance Marking",
+      desc: "If a real face is detected, attendance is automatically marked present; otherwise, the learner is marked absent.",
       icon: <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>,
     },
   ];
@@ -686,9 +689,9 @@ function HowItWorksPage() {
     <div style={{ minHeight: "100vh", paddingBottom: 80 }}>
       <PageHero
         badge="How It Works"
-        title="How Learning Hub Works"
+        title="How SkillBridge Works"
         accentWord="Works"
-        subtitle="Getting started is simple. Follow these five steps to begin your programming learning journey today."
+        subtitle="Getting started is simple. Follow these steps to join live sessions, learn from mentors, and maintain verified attendance."
       />
 
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 24px" }}>
@@ -702,10 +705,10 @@ function HowItWorksPage() {
         }}>
           <div style={{ flex: 1, padding: isMobile ? "24px 20px 8px" : "40px 48px", width: "100%" }}>
             <h3 style={{ fontFamily: "'Sora', sans-serif", fontSize: 22, fontWeight: 800, color: C.text, margin: "0 0 12px", letterSpacing: -0.6 }}>
-              A structured path to mastery
+              A Smart Path to Live Learning
             </h3>
             <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 15, color: C.muted, lineHeight: 1.7, maxWidth: 420, margin: 0 }}>
-              Learning Hub is designed so every step builds on the last. From signup to progress tracking, the entire experience is seamless and encouraging.
+              SkillBridge is designed to make live learning simple, interactive, and reliable. From joining sessions to face detection-based attendance marking, every step ensures genuine participation and a better learning experience.
             </p>
           </div>
           <div style={{ width: isCompact ? "100%" : 240, height: isCompact ? 150 : 180, flexShrink: 0 }}>
@@ -797,12 +800,13 @@ function HowItWorksPage() {
             position: "absolute", inset: 0, opacity: 0.1,
             backgroundImage: "radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)",
             backgroundSize: "40px 40px",
+            pointerEvents: "none",
           }} />
           <h2 style={{ fontFamily: "'Sora', sans-serif", fontSize: 30, fontWeight: 800, color: "white", margin: "0 0 12px", letterSpacing: -1 }}>
-            Begin your journey today
+            Start Learning Live Today
           </h2>
           <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 16, color: "rgba(255,255,255,0.78)", margin: "0 0 28px" }}>
-            Five simple steps to becoming a confident programmer.
+            Join live sessions, learn from experts, and experience smart learning.
           </p>
           <button style={{
             background: "white", border: "none", borderRadius: 14,
@@ -812,6 +816,7 @@ function HowItWorksPage() {
           }}
           onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 10px 30px rgba(0,0,0,0.2)"; }}
           onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.15)"; }}
+          onClick={() => navigate("/auth")}
           >Start Learning Now →</button>
         </div>
       </div>
@@ -1417,7 +1422,7 @@ function HomePage() {
         }}>
           <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.purple, animation: "pulse 2s infinite" }} />
           <span style={{ fontSize: 12, fontWeight: 600, color: C.purple, fontFamily: "'DM Sans', sans-serif", letterSpacing: 0.5 }}>
-            All-in-one Platform
+            Live Learning Platform
           </span>
         </div>
 
@@ -1425,21 +1430,21 @@ function HomePage() {
           fontFamily: "'Sora', sans-serif", fontSize: "clamp(52px, 6vw, 76px)",
           lineHeight: 1.0, fontWeight: 800, color: C.text, letterSpacing: -2, margin: "0 0 24px",
         }}>
-          Build.<br />Create.<br />
+          Learn.<br />Connect.<br />
           <span style={{
             background: `linear-gradient(135deg, ${C.purple} 0%, ${C.indigo} 100%)`,
             WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
-          }}>Innovate.</span>
+          }}>Grow.</span>
         </h1>
 
         <p style={{
           fontSize: 16, lineHeight: 1.7, color: C.muted, margin: "0 0 36px",
           fontFamily: "'DM Sans', sans-serif", maxWidth: isTablet ? "100%" : 340,
         }}>
-          SkillBridge is the all-in-one platform to bring your ideas to life with immersive 3D experiences and modern tools.
+          SkillBridge is an online skill-sharing and live learning platform where mentors conduct live sessions and learners join to gain practical knowledge through real-time interaction.
         </p>
 
-        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center" }}>
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "left" }}>
           <button style={{
             background: "white", border: `2px solid rgba(124,58,237,0.25)`, borderRadius: 14,
             padding: "14px 28px", fontSize: 15, fontWeight: 700, color: C.text, cursor: "pointer",
@@ -1461,7 +1466,7 @@ function HomePage() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
           </svg>
           <span style={{ fontSize: 13, fontWeight: 600, color: C.muted, fontFamily: "'DM Sans', sans-serif", letterSpacing: 0.3 }}>
-            Secure. Fast. Reliable.
+            Live. Verified. Interactive.
           </span>
         </div>
       </div>
