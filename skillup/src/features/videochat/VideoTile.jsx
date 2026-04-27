@@ -16,6 +16,10 @@ export default function VideoTile({
   useEffect(() => {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
+      // Force video playback after assigning srcObject to ensure live stream is active
+      videoRef.current.play().catch((err) => {
+        console.warn("[VideoTile] Video play() failed (may resume on interaction):", err);
+      });
     }
   }, [stream, videoRef]);
 

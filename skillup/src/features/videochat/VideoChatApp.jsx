@@ -125,7 +125,6 @@ function Room({ userName, roomId, onLeave, onBack }) {
   const [faceModelReady, setFaceModelReady] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
   const [attendanceMarked, setAttendanceMarked] = useState(false);
-  const [localVideoReady, setLocalVideoReady] = useState(false);
   const [attendanceAttemptToken, setAttendanceAttemptToken] = useState(0);
   const attendanceRequestInFlightRef = useRef(false);
 
@@ -242,7 +241,9 @@ function Room({ userName, roomId, onLeave, onBack }) {
 
       socket.on("connect", () => {
         setMySocketId(socket.id);
+        console.log("[socket] Connected to signal server with socketId:", socket.id);
         socket.emit("join-room", { roomId, userName });
+        console.log("[socket] Emitted join-room event:", { roomId, userName });
 
         const currentUserId = user?._id ?? null;
         const basePayload = {
@@ -253,14 +254,38 @@ function Room({ userName, roomId, onLeave, onBack }) {
           name: userName,
         };
 
+        console.log("[attendance] Creating attendance document for session:", {
+          roomId,
+          userName,
+          userId: currentUserId ? `${currentUserId}` : "(no userId)",
+        });
+
         void fetch(`${API_BASE}/attendance/create`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(basePayload),
-        }).catch((error) => {
-          console.warn("[attendance] failed to create room attendance:", error);
+        })
+          .then((res) => {
+            console.log("[attendance] Create attendance response:", res.status);
+            return res.json();
+          })
+          .then((data) => {
+            console.log("[attendance] Created attendance document:", {
+              attendanceId: data?._id,
+              roomId: data?.roomId,
+              date: data?.date,
+            });
+          })
+          .catch((error) => {
+            console.warn("[attendance] Failed to create attendance document:", error);
+          });
+
+        console.log("[attendance] Registering user in waiting list:", {
+          roomId,
+          userName,
+          userId: currentUserId ? `${currentUserId}` : "(no userId)",
         });
 
         void fetch(`${API_BASE}/attendance/join`, {
@@ -269,9 +294,20 @@ function Room({ userName, roomId, onLeave, onBack }) {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(basePayload),
-        }).catch((error) => {
-          console.warn("[attendance] failed to register joined user:", error);
-        });
+        })
+          .then((res) => {
+            console.log("[attendance] Join attendance response:", res.status);
+            return res.json();
+          })
+          .then((data) => {
+            console.log("[attendance] User registered in waiting list:", {
+              roomId: data?.roomId,
+              waitingCount: data?.attendance?.waitingUsers?.length || 0,
+            });
+          })
+          .catch((error) => {
+            console.warn("[attendance] Failed to register joined user:", error);
+          });
       });
 
       socket.on("room-users", (users) => {
@@ -323,88 +359,115 @@ function Room({ userName, roomId, onLeave, onBack }) {
 
   useEffect(() => {
     if (!videoOn) {
+      console.log("[face-api] Video is off, stopping detection.");
       setFaceDetected(false);
       return;
     }
 
     let cancelled = false;
+    let detectionCount = 0;
+    let successCount = 0;
 
     const detectFaces = async () => {
       const videoElement = videoRef.current;
 
-      if (
-        !videoElement ||
-        !localStreamRef.current ||
-        !faceModelsLoadedRef.current ||
-        !localVideoReady ||
-        videoElement.readyState < 2
-      ) {
-        if (!cancelled) setFaceDetected(false);
+      // More lenient checks - don't require localVideoReady to be true
+      if (!videoElement || !localStreamRef.current || !faceModelsLoadedRef.current) {
+        return;
+      }
+
+      // Check if video has data to process (less strict than readyState >= 2)
+      if (videoElement.readyState < 1) {
+        // HAVE_NOTHING - no video data yet
         return;
       }
 
       try {
-        const detections = await faceapi.detectAllFaces(
+        detectionCount++;
+        
+        // Use detectSingleFace() instead of detectAllFaces() for better performance
+        const detection = await faceapi.detectSingleFace(
           videoElement,
-          new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.3 })
+          new faceapi.TinyFaceDetectorOptions({ 
+            inputSize: 416,
+            scoreThreshold: 0.5 
+          })
         );
 
         if (!cancelled) {
-          setFaceDetected(detections.length > 0);
+          if (detection) {
+            successCount++;
+            console.log(
+              `[face-api] Face detected (#${successCount}/${detectionCount}):`,
+              {
+                x: Math.round(detection.box.x),
+                y: Math.round(detection.box.y),
+                width: Math.round(detection.box.width),
+                height: Math.round(detection.box.height),
+                score: (detection.score * 100).toFixed(1) + "%",
+              }
+            );
+            setFaceDetected(true);
+          } else {
+            console.log(`[face-api] No face detected (${detectionCount} attempts)`);
+            setFaceDetected(false);
+          }
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
+          console.warn("[face-api] Detection error:", error.message);
           setFaceDetected(false);
         }
       }
     };
 
+    // Start detection immediately and then on interval
     void detectFaces();
     const detectionInterval = window.setInterval(() => {
       void detectFaces();
-    }, 1000);
+    }, 1500); // 1.5s interval for balanced performance
 
     return () => {
       cancelled = true;
       window.clearInterval(detectionInterval);
+      console.log(`[face-api] Detection stopped. Total attempts: ${detectionCount}, Successful: ${successCount}`);
     };
-  }, [videoOn, localStream, localVideoReady]);
+  }, [videoOn, localStream]);
 
   const handleLocalVideoReady = useCallback(() => {
-    const ready = Boolean(videoRef.current && videoRef.current.readyState >= 2);
-    if (ready) {
-      setLocalVideoReady(true);
-      console.log("[face-api] Local webcam video is ready for face detection.");
+    const videoEl = videoRef.current;
+    if (videoEl) {
+      console.log("[video] Local video ready:", {
+        readyState: videoEl.readyState,
+        videoWidth: videoEl.videoWidth,
+        videoHeight: videoEl.videoHeight,
+        duration: videoEl.duration,
+      });
     }
   }, []);
 
   useEffect(() => {
-    if (!videoOn || !localStream) {
-      setLocalVideoReady(false);
-      return;
-    }
-
-    const currentVideo = videoRef.current;
-    if (currentVideo && currentVideo.readyState >= 2) {
-      setLocalVideoReady(true);
-    }
-  }, [videoOn, localStream]);
-
-  useEffect(() => {
     if (faceDetected && !attendanceMarked) {
+      console.log("[face-api] Face detected! Triggering attendance marking...");
       setAttendanceAttemptToken((prev) => prev + 1);
     }
   }, [faceDetected, attendanceMarked]);
 
   useEffect(() => {
-    if (!(faceDetected === true && attendanceMarked === false && attendanceAttemptToken > 0)) return;
+    if (!(faceDetected === true && attendanceMarked === false && attendanceAttemptToken > 0)) {
+      return;
+    }
 
     if (attendanceRequestInFlightRef.current) {
+      console.log("[attendance] Request already in flight, skipping.");
       return;
     }
 
     const userId = user?._id ?? null;
-    if (!roomId || !userName) return;
+    if (!roomId || !userName) {
+      console.warn("[attendance] Missing roomId or userName, cannot mark attendance.");
+      return;
+    }
 
     attendanceRequestInFlightRef.current = true;
 
@@ -419,9 +482,12 @@ function Room({ userName, roomId, onLeave, onBack }) {
         name: userName,
       };
 
-      console.log("[attendance] sending mark request", {
+      console.log("[attendance] Sending mark attendance request:", {
         endpoint: `${API_BASE}/attendance/mark`,
-        payload,
+        userName,
+        userId: userId ? `${userId}` : "(no userId)",
+        roomId,
+        timestamp: new Date().toISOString(),
       });
 
       try {
@@ -438,23 +504,38 @@ function Room({ userName, roomId, onLeave, onBack }) {
 
         if (!cancelled && (res.ok || alreadyMarked)) {
           setAttendanceMarked(true);
-          console.log("[attendance] mark request succeeded:", data);
+          console.log("[attendance] Successfully marked attendance for user:", {
+            userName,
+            userId: userId ? `${userId}` : "(no userId)",
+            response: data,
+            timestamp: new Date().toISOString(),
+          });
           return;
         }
 
         if (!cancelled) {
-          console.warn("[attendance] mark request returned non-success response:", {
+          console.warn("[attendance] Mark request returned non-success response:", {
             status: res.status,
+            statusText: res.statusText,
+            userName,
             data,
           });
+          // Retry after 5 seconds
           retryTimer = window.setTimeout(() => {
+            console.log("[attendance] Retrying attendance mark...");
             setAttendanceAttemptToken((prev) => prev + 1);
           }, 5000);
         }
       } catch (error) {
         if (!cancelled) {
-          console.warn("[attendance] failed to mark attendance:", error);
+          console.error("[attendance] Failed to mark attendance:", {
+            userName,
+            error: error.message,
+            timestamp: new Date().toISOString(),
+          });
+          // Retry after 5 seconds
           retryTimer = window.setTimeout(() => {
+            console.log("[attendance] Retrying attendance mark after error...");
             setAttendanceAttemptToken((prev) => prev + 1);
           }, 5000);
         }

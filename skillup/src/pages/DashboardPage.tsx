@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Calendar, Clock, BookOpen, TrendingUp, Star, ArrowRight, Video, PlayCircle, Users, PlusCircle, BarChart3, Radio, UserPlus } from "lucide-react";
+import { Calendar, Clock, BookOpen, TrendingUp, Star, ArrowRight, Video, PlayCircle, Users, PlusCircle, BarChart3, Radio, UserPlus, CheckCircle2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import Particles, { initParticlesEngine } from "@tsparticles/react";
 import { loadSlim } from "@tsparticles/slim";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Navbar from "@/components/Navbar";
+import SessionAttendanceView from "@/components/SessionAttendanceView";
 import { skills } from "@/data/mockData";
 import { useAuth } from "@/features/authsystem/AuthContext";
 import { API_BASE } from "@/features/authsystem/config";
@@ -182,6 +183,7 @@ const DashboardPage = () => {
   const [sessionsData, setSessionsData] = useState<DbSession[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [particlesReady, setParticlesReady] = useState(false);
+  const [selectedAttendanceSessionId, setSelectedAttendanceSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     initParticlesEngine(async (engine) => {
@@ -559,36 +561,53 @@ const DashboardPage = () => {
 
               <div className="bg-card rounded-xl shadow-card border border-border/50 p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-semibold text-foreground">Live Session Control</h2>
-                  <Link to="/sessions" className="text-sm text-primary hover:underline">Open Live Board</Link>
+                  <h2 className="text-xl font-semibold text-foreground">Session Attendance</h2>
+                  <Link to="/sessions" className="text-sm text-primary hover:underline">View all sessions</Link>
                 </div>
-                <div className="space-y-3">
-                  {mentorLive.length > 0 ? (
-                    mentorLive.map((session) => (
-                      <div key={session._id} className="bg-muted/30 rounded-xl border border-border/50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-center gap-4 min-w-0">
-                          <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center">
-                            <Radio className="w-5 h-5 text-destructive" />
-                          </div>
+                {selectedAttendanceSessionId ? (
+                  <div>
+                    <Button
+                      variant="ghost"
+                      className="mb-4 gap-2"
+                      onClick={() => setSelectedAttendanceSessionId(null)}
+                    >
+                      ← Back to session list
+                    </Button>
+                    <SessionAttendanceView
+                      sessionId={selectedAttendanceSessionId}
+                      mentorId={authUser?._id || ""}
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {loadingSessions ? (
+                      <p className="text-muted-foreground">Loading sessions...</p>
+                    ) : mentorCompleted.length > 0 ? (
+                      mentorCompleted.map((session) => (
+                        <div
+                          key={session._id}
+                          className="bg-muted/30 rounded-xl border border-border/50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        >
                           <div className="min-w-0">
                             <h3 className="font-medium text-foreground">{session.title}</h3>
-                            <p className="text-sm text-muted-foreground truncate">Room {session.roomId}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {formatDate(session.scheduledAt)} • Room {session.roomId}
+                            </p>
                           </div>
-                        </div>
-                        <div className="flex gap-2 flex-wrap">
-                          <Button asChild>
-                            <Link to={`/room/${session.roomId}?name=${encodeURIComponent(authUser.name)}`}>Enter Session</Link>
+                          <Button
+                            variant="outline"
+                            className="gap-2"
+                            onClick={() => setSelectedAttendanceSessionId(session._id)}
+                          >
+                            <CheckCircle2 className="w-4 h-4" /> View Attendance
                           </Button>
-                          <Button variant="outline" asChild>
-                            <Link to="/sessions">End Session</Link>
-                          </Button>
                         </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-muted-foreground">No live sessions at the moment.</p>
-                  )}
-                </div>
+                      ))
+                    ) : (
+                      <p className="text-muted-foreground">No completed sessions yet.</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
