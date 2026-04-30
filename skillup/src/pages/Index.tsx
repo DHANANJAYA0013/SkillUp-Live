@@ -84,7 +84,7 @@ function Navbar({ activePage, setPage }) {
   return (
     <nav style={{
       position: "fixed", top: isMobile ? 10 : 16, left: "50%", transform: "translateX(-50%)",
-      width: isMobile ? "calc(100% - 20px)" : "calc(100% - 48px)", maxWidth: 1100,
+      width: isMobile ? "calc(100% - 32px)" : "calc(100% - 48px)", maxWidth: 1200,
       background: scrolled ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.78)",
       backdropFilter: "blur(20px)",
       borderRadius: isMobile ? 16 : 20, border: "1px solid rgba(124,58,237,0.12)",
@@ -482,7 +482,7 @@ function AboutPage() {
               <span style={{ fontSize: 11, fontWeight: 700, color: C.purple, fontFamily: "'DM Sans', sans-serif", letterSpacing: 1, textTransform: "uppercase" }}>Developer</span>
             </div>
             <h2 style={{ fontFamily: "'Sora', sans-serif", fontSize: 28, fontWeight: 800, color: C.text, letterSpacing: -0.8, margin: "0 0 8px" }}>
-              Dhananjay Anchan
+              Dhananjaya
             </h2>
             <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 16, fontWeight: 500, color: C.purple, margin: "0 0 14px" }}>
               MCA Student & Full Stack Developer
@@ -838,7 +838,13 @@ function Scene3D() {
     const el = mountRef.current;
     if (!el) return;
 
-    const W = el.clientWidth, H = el.clientHeight;
+    /* Ensure container has proper dimensions with fallback */
+    let W = el.clientWidth || window.innerWidth;
+    let H = el.clientHeight || 400;
+    
+    /* Clamp to reasonable minimums */
+    W = Math.max(W, 200);
+    H = Math.max(H, 200);
 
     /* Renderer */
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -851,9 +857,11 @@ function Scene3D() {
     /* Scene */
     const scene = new THREE.Scene();
 
-    /* Camera — pulled back to frame the larger house */
+    /* Camera — responsive positioning based on screen size */
+    const isMobileView = window.innerWidth < 768;
+    const cameraZ = isMobileView ? 35 : 28;
     const camera = new THREE.PerspectiveCamera(46, W / H, 0.1, 300);
-    camera.position.set(0, 10, 28);
+    camera.position.set(0, 10, cameraZ);
     camera.lookAt(0, 2, 0);
 
     /* ── LIGHTS ── */
@@ -1339,14 +1347,41 @@ function Scene3D() {
     window.addEventListener("mousemove", onMove);
     window.addEventListener("touchmove", onMove, { passive: true });
 
-    /* ── RESIZE ── */
-    const onResize = () => {
-      const W2 = el.clientWidth, H2 = el.clientHeight;
-      renderer.setSize(W2, H2);
+    /* ── RESIZE HANDLER (shared by ResizeObserver and window resize) ── */
+    const handleResize = () => {
+      if (!el || !el.parentElement) return;
+      
+      let W2 = el.clientWidth || window.innerWidth;
+      let H2 = el.clientHeight || 400;
+      
+      /* Ensure minimum dimensions */
+      W2 = Math.max(W2, 200);
+      H2 = Math.max(H2, 200);
+      
+      /* Update renderer */
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(W2, H2, false);
+      
+      /* Update camera */
       camera.aspect = W2 / H2;
       camera.updateProjectionMatrix();
+      
+      /* Adjust camera position for mobile on resize */
+      const isMobileView = window.innerWidth < 768;
+      camera.position.z = isMobileView ? 35 : 28;
     };
-    window.addEventListener("resize", onResize);
+
+    /* ── RESIZE OBSERVER (primary method for detecting container size changes) ── */
+    let resizeObserver;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        handleResize();
+      });
+      resizeObserver.observe(el);
+    }
+
+    /* ── WINDOW RESIZE LISTENER (fallback for older browsers) ── */
+    window.addEventListener("resize", handleResize);
 
     /* ── ANIMATE ── */
     let raf;
@@ -1377,23 +1412,48 @@ function Scene3D() {
     };
     animate();
 
+    /* Force resize to ensure proper canvas rendering after mount */
+    const resizeTimeout = setTimeout(() => {
+      handleResize();
+      window.dispatchEvent(new Event("resize"));
+    }, 500);
+
     stateRef.current = { renderer, raf };
     return () => {
+      clearTimeout(resizeTimeout);
       cancelAnimationFrame(raf);
-      renderer.dispose();
-      renderer.domElement.remove();
+      
+      /* Cleanup ResizeObserver */
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+      
+      /* Cleanup event listeners */
+      renderer.domElement.removeEventListener("mousedown", onDown);
+      renderer.domElement.removeEventListener("touchstart", onDown);
       window.removeEventListener("mouseup", onUp);
       window.removeEventListener("touchend", onUp);
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("touchmove", onMove);
-      window.removeEventListener("resize", onResize);
+      window.removeEventListener("resize", handleResize);
+      
+      /* Cleanup renderer */
+      renderer.dispose();
+      renderer.domElement.remove();
     };
   }, []);
 
   return (
     <div
       ref={mountRef}
-      style={{ width: "100%", height: "100%", cursor: "grab" }}
+      style={{
+        width: "100%",
+        height: "100%",
+        minHeight: "300px",
+        display: "block",
+        position: "relative",
+        cursor: "grab",
+      }}
       onMouseDown={e => { e.currentTarget.style.cursor = "grabbing"; }}
       onMouseUp={e => { e.currentTarget.style.cursor = "grab"; }}
     />
@@ -1409,12 +1469,13 @@ function HomePage() {
     <section style={{
       minHeight: "100vh",
       display: "flex",
-      alignItems: "center",
+      alignItems: isTablet ? "flex-start" : "center",
       padding: isTablet ? "108px 16px 28px" : "0 24px",
       maxWidth: 1200,
       margin: "0 auto",
       gap: isTablet ? 28 : 40,
       flexDirection: isTablet ? "column" : "row",
+      justifyContent: "center",
     }}>
       {/* LEFT */}
       <div style={{ flex: isTablet ? "1 1 auto" : "0 0 420px", maxWidth: isTablet ? "100%" : 420, width: "100%" }}>
@@ -1476,11 +1537,14 @@ function HomePage() {
 
       {/* RIGHT - 3D Scene */}
       <div style={{
-        flex: 1,
-        width: "100%",
-        height: isMobile ? 360 : (isTablet ? 460 : 600),
-        minHeight: isMobile ? 340 : 420,
+        flex: isTablet ? "0 0 auto" : 1,
+        width: isTablet ? "100%" : "auto",
+        height: isMobile ? 360 : (isTablet ? 380 : 600),
+        minHeight: isMobile ? 360 : (isTablet ? 380 : 420),
+        maxWidth: isTablet ? "100%" : undefined,
         position: "relative",
+        display: "block",
+        overflow: "hidden",
         transform: `translateX(${isMobile ? 0 : (isTablet ? -8 : -50)}px)`,
       }}>
         <div style={{

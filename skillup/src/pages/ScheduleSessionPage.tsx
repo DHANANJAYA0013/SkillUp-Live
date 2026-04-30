@@ -290,7 +290,12 @@ const ScheduleSessionPage = () => {
 
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Schedule Session</h1>
-          <p className="text-muted-foreground mt-1">Create a new mentoring session in the sessions collection.</p>
+          <p className="text-muted-foreground mt-1">Create a session to teach any skill — from coding to music, fitness, or art.</p>
+        </div>
+
+        {/* Helper hint */}
+        <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700">
+          You can create sessions for any skill.
         </div>
 
         <Card className="shadow-card">
@@ -301,12 +306,12 @@ const ScheduleSessionPage = () => {
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="sessionTitle">Title</Label>
+                <Label htmlFor="sessionTitle">Session Title</Label>
                 <Input
                   id="sessionTitle"
                   value={sessionTitle}
                   onChange={(e) => setSessionTitle(e.target.value)}
-                  placeholder="Frontend Interview Preparation"
+                  placeholder="e.g., Guitar Basics, Yoga for Beginners, UI Design, Public Speaking"
                   className="bg-card"
                 />
               </div>
@@ -317,9 +322,10 @@ const ScheduleSessionPage = () => {
                   rows={4}
                   value={sessionDescription}
                   onChange={(e) => setSessionDescription(e.target.value)}
-                  placeholder="What this session will cover."
+                  placeholder="Describe what learners will gain from this session (skills, outcomes, level, etc.)"
                   className="bg-card"
                 />
+                <p className="text-xs text-muted-foreground mt-1">This can be any skill — not just technical topics.</p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="sessionDateTime">Date & Time</Label>
@@ -344,18 +350,27 @@ const ScheduleSessionPage = () => {
                 />
               </div>
               <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="sessionTopic">Topic</Label>
-                <Input
+                <Label htmlFor="sessionTopic">Category / Skill</Label>
+                <select
                   id="sessionTopic"
                   value={sessionTopic}
                   onChange={(e) => setSessionTopic(e.target.value)}
-                  placeholder="React, Node.js, System Design"
-                  className="bg-card"
-                />
+                  className="w-full rounded-md border bg-white/80 px-3 py-2 text-sm shadow-sm"
+                >
+                  <option value="">Select a category</option>
+                  <option value="Programming">Programming</option>
+                  <option value="Music">Music</option>
+                  <option value="Art & Drawing">Art & Drawing</option>
+                  <option value="Fitness">Fitness</option>
+                  <option value="Public Speaking">Public Speaking</option>
+                  <option value="Business">Business</option>
+                  <option value="Language Learning">Language Learning</option>
+                  <option value="Other">Other</option>
+                </select>
               </div>
               <div className="sm:col-span-2">
                 <Button onClick={handleCreateSession} disabled={creatingSession}>
-                  {creatingSession ? "Creating..." : "Create session"}
+                  {creatingSession ? "Publishing..." : "Publish Session"}
                 </Button>
               </div>
             </div>
