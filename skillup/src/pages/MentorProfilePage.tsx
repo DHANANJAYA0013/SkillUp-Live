@@ -410,11 +410,6 @@ const MentorProfilePage = () => {
               >
                 {followLoading ? "Please wait..." : isFollowing ? "Following" : "Follow"}
               </Button>
-              <Link to={`/chat/${mentor._id}`} className="w-full block">
-                <Button variant="outline" className="w-full">
-                  Send Message
-                </Button>
-              </Link>
 
               <div className="mt-6 pt-6 border-t border-border/50 space-y-3">
                 <div className="flex justify-between text-sm">

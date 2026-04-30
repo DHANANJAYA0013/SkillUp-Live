@@ -124,9 +124,13 @@ function Room({ userName, roomId, onLeave, onBack }) {
   const [spotlightId, setSpotlightId] = useState(null);
   const [faceModelReady, setFaceModelReady] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
+  const [emotion, setEmotion] = useState("neutral");
+  const [emotionLog, setEmotionLog] = useState([]);
+  const [emotionAlert, setEmotionAlert] = useState("");
   const [attendanceMarked, setAttendanceMarked] = useState(false);
   const [attendanceAttemptToken, setAttendanceAttemptToken] = useState(0);
   const attendanceRequestInFlightRef = useRef(false);
+  const latestEmotionRef = useRef("neutral");
 
   const addPeer = useCallback((id, info) => {
     setPeers((prev) => ({
@@ -184,6 +188,8 @@ function Room({ userName, roomId, onLeave, onBack }) {
 
       try {
         await faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL);
+        await faceapi.nets.faceLandmark68TinyNet.loadFromUri(FACE_MODEL_URL);
+        await faceapi.nets.faceExpressionNet.loadFromUri(FACE_MODEL_URL);
         if (!cancelled) {
           faceModelsLoadedRef.current = true;
           setFaceModelReady(true);
@@ -386,13 +392,16 @@ function Room({ userName, roomId, onLeave, onBack }) {
         detectionCount++;
         
         // Use detectSingleFace() instead of detectAllFaces() for better performance
-        const detection = await faceapi.detectSingleFace(
-          videoElement,
-          new faceapi.TinyFaceDetectorOptions({ 
-            inputSize: 416,
-            scoreThreshold: 0.5 
-          })
-        );
+        const detection = await faceapi
+          .detectSingleFace(
+            videoElement,
+            new faceapi.TinyFaceDetectorOptions({
+              inputSize: 416,
+              scoreThreshold: 0.5,
+            })
+          )
+          .withFaceLandmarks(true)
+          .withFaceExpressions();
 
         if (!cancelled) {
           if (detection) {
@@ -408,15 +417,33 @@ function Room({ userName, roomId, onLeave, onBack }) {
               }
             );
             setFaceDetected(true);
+
+            if (detection.expressions) {
+              const expressions = detection.expressions;
+              const dominantEmotion = Object.keys(expressions).reduce((a, b) =>
+                expressions[a] > expressions[b] ? a : b
+              );
+
+              latestEmotionRef.current = dominantEmotion;
+              setEmotion(dominantEmotion);
+              setEmotionLog((prev) => {
+                const next = [...prev, { emotion: dominantEmotion, time: Date.now() }];
+                return next.slice(-120);
+              });
+            }
           } else {
             console.log(`[face-api] No face detected (${detectionCount} attempts)`);
             setFaceDetected(false);
+            latestEmotionRef.current = "neutral";
+            setEmotion("neutral");
           }
         }
       } catch (error) {
         if (!cancelled) {
           console.warn("[face-api] Detection error:", error.message);
           setFaceDetected(false);
+          latestEmotionRef.current = "neutral";
+          setEmotion("neutral");
         }
       }
     };
@@ -433,6 +460,63 @@ function Room({ userName, roomId, onLeave, onBack }) {
       console.log(`[face-api] Detection stopped. Total attempts: ${detectionCount}, Successful: ${successCount}`);
     };
   }, [videoOn, localStream]);
+
+  useEffect(() => {
+    if (emotionLog.length === 0) {
+      setEmotionAlert("");
+      return;
+    }
+
+    const now = Date.now();
+    const recent = emotionLog.filter((entry) => now - entry.time <= 10000);
+    const isConcerned = recent.length > 0 && recent.every((entry) => entry.emotion === "sad" || entry.emotion === "angry");
+
+    if (isConcerned && now - recent[0].time >= 10000) {
+      setEmotionAlert("Student seems confused or frustrated");
+    } else {
+      setEmotionAlert("");
+    }
+  }, [emotionLog]);
+
+  useEffect(() => {
+    if (!roomId) return;
+
+    let cancelled = false;
+
+    const sendEmotion = async () => {
+      const payload = {
+        userId: user?._id ?? null,
+        sessionId: roomId,
+        name: userName,
+        emotion: latestEmotionRef.current || "neutral",
+        timestamp: Date.now(),
+      };
+
+      try {
+        await fetch(`${API_BASE}/emotion`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+      } catch (error) {
+        if (!cancelled) {
+          console.warn("[emotion] Failed to send emotion sample:", error);
+        }
+      }
+    };
+
+    void sendEmotion();
+    const emotionInterval = window.setInterval(() => {
+      void sendEmotion();
+    }, 7000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(emotionInterval);
+    };
+  }, [roomId, user?._id, userName]);
 
   const handleLocalVideoReady = useCallback(() => {
     const videoEl = videoRef.current;
@@ -647,6 +731,29 @@ function Room({ userName, roomId, onLeave, onBack }) {
                 ? "Face detected - Marking attendance..."
                 : "Detecting Face..."}
           </div>
+          <div className="face-status" style={{ fontSize: 12, marginTop: 6, opacity: 0.95 }}>
+            Current emotion: {emotion.charAt(0).toUpperCase() + emotion.slice(1)}
+          </div>
+          {emotionAlert && (
+            <div
+              style={{
+                marginTop: 8,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                padding: "5px 10px",
+                borderRadius: 9999,
+                border: "1px solid rgba(245, 158, 11, 0.35)",
+                background: "rgba(245, 158, 11, 0.12)",
+                color: "#b45309",
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              {emotionAlert}
+            </div>
+          )}
         </div>
         <div className="header-right">
           <button
@@ -692,6 +799,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
                     isLocal={p.isLocal}
                     videoOn={p.videoOn}
                     audioOn={p.audioOn}
+                    emotion={p.isLocal ? emotion : ""}
                     externalVideoRef={p.isLocal ? videoRef : undefined}
                     onVideoReady={p.isLocal ? handleLocalVideoReady : undefined}
                   />
@@ -709,6 +817,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
                     isLocal={spotlightUser.isLocal}
                     videoOn={spotlightUser.videoOn}
                     audioOn={spotlightUser.audioOn}
+                    emotion={spotlightUser.isLocal ? emotion : ""}
                     externalVideoRef={spotlightUser.isLocal ? videoRef : undefined}
                     onVideoReady={spotlightUser.isLocal ? handleLocalVideoReady : undefined}
                   />
@@ -724,6 +833,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
                       isLocal={p.isLocal}
                       videoOn={p.videoOn}
                       audioOn={p.audioOn}
+                      emotion={p.isLocal ? emotion : ""}
                       externalVideoRef={p.isLocal ? videoRef : undefined}
                       onVideoReady={p.isLocal ? handleLocalVideoReady : undefined}
                     />

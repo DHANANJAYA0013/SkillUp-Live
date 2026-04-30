@@ -13,6 +13,7 @@ import MentorProfilePage from "./pages/MentorProfilePage";
 import LearnerProfilePage from "./pages/LearnerProfilePage";
 import SessionsPage from "./pages/SessionsPage";
 import DashboardPage from "./pages/DashboardPage";
+import MentorDashboardPage from "./pages/MentorDashboardPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AdminLoginPage from "./pages/AdminLoginPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -50,6 +51,10 @@ const RoleBasedDashboardRoute = () => {
     return <Navigate to="/auth" replace />;
   }
 
+  if (user.role === "mentor") {
+    return <Navigate to="/mentor-dashboard" replace />;
+  }
+
   return <DashboardPage />;
 };
 
@@ -79,7 +84,7 @@ const App = () => (
               <Route path="/sessions" element={<SessionsPage />} />
               {/* <Route path="/skills" element={<Navigate to="/sessions" replace />} /> */}
               <Route path="/dashboard" element={<RoleBasedDashboardRoute />} />
-              <Route path="/mentor-dashboard" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/mentor-dashboard" element={<MentorDashboardPage />} />
               <Route path="/admin-login" element={<AdminLoginPage />} />
               <Route
                 path="/admin-dashboard"

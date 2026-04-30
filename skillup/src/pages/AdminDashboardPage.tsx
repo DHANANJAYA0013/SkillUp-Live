@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { API_BASE } from "@/features/authsystem/config";
 
+const EMOTION_KEYS = ["happy", "neutral", "sad", "angry", "surprised", "fearful", "disgusted"] as const;
+
 const ADMIN_AUTH_TOKEN_KEY = "skillup_admin_token";
 
 type UserRole = "mentor" | "learner" | null;
@@ -70,6 +72,26 @@ interface AdminOverviewResponse {
   };
 }
 
+interface EmotionSummaryStudent {
+  userId: string | null;
+  studentName: string;
+  total: number;
+  counts: Record<string, number>;
+  percentages: Record<string, number>;
+  engagement: number;
+  latestEmotion: string;
+  lastSeenAt: string;
+}
+
+interface EmotionSummaryResponse {
+  sessionId: string;
+  total: number;
+  counts: Record<string, number>;
+  percentages: Record<string, number>;
+  engagement: number;
+  students: EmotionSummaryStudent[];
+}
+
 const parseApiResponse = async (res: Response) => {
   const raw = await res.text();
   try {
@@ -94,6 +116,10 @@ const AdminDashboardPage = () => {
   const [newAccessCode, setNewAccessCode] = useState("");
   const [settingsMessage, setSettingsMessage] = useState("");
   const [settingsError, setSettingsError] = useState("");
+  const [emotionSessionId, setEmotionSessionId] = useState("");
+  const [emotionSummary, setEmotionSummary] = useState<EmotionSummaryResponse | null>(null);
+  const [emotionSummaryLoading, setEmotionSummaryLoading] = useState(false);
+  const [emotionSummaryError, setEmotionSummaryError] = useState("");
 
   const adminToken = localStorage.getItem(ADMIN_AUTH_TOKEN_KEY) || "";
 
@@ -281,6 +307,36 @@ const AdminDashboardPage = () => {
       { label: "Completed Sessions", value: overview.stats.completedSessions, icon: CheckCircle2 },
     ];
   }, [overview]);
+
+  const loadEmotionSummary = async () => {
+    const sessionId = emotionSessionId.trim();
+
+    if (!sessionId) {
+      setEmotionSummaryError("Enter a session or room ID.");
+      return;
+    }
+
+    setEmotionSummaryLoading(true);
+    setEmotionSummaryError("");
+
+    try {
+      const res = await fetch(`${API_BASE}/emotion/summary?sessionId=${encodeURIComponent(sessionId)}`);
+      const data = await parseApiResponse(res);
+
+      if (!res.ok) {
+        const message = data && typeof data === "object" && "error" in data
+          ? String((data as { error: unknown }).error)
+          : "Failed to load emotion summary";
+        throw new Error(message);
+      }
+
+      setEmotionSummary(data as EmotionSummaryResponse);
+    } catch (err) {
+      setEmotionSummaryError(err instanceof Error ? err.message : "Failed to load emotion summary");
+    } finally {
+      setEmotionSummaryLoading(false);
+    }
+  };
 
   if (loading) {
     return <div className="min-h-screen grid place-items-center bg-background text-sm sm:text-base">Loading admin dashboard...</div>;
@@ -516,6 +572,100 @@ const AdminDashboardPage = () => {
               </div>
             </CardContent>
           </Card>
+        </section>
+
+        <section className="space-y-3 sm:space-y-4">
+          <h2 className="text-lg sm:text-xl font-semibold text-foreground">Emotion Insights</h2>
+          <Card className="border-border/60">
+            <CardHeader className="px-3 sm:px-6 py-4">
+              <CardTitle className="text-base sm:text-lg">Session Emotion Summary</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">View emotion trends and engagement for any live session or room ID.</CardDescription>
+            </CardHeader>
+            <CardContent className="px-3 sm:px-6 pb-4 space-y-3 sm:space-y-4">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-end">
+                <div className="flex-1">
+                  <Label htmlFor="emotion-session-id" className="text-xs sm:text-sm">Session / Room ID</Label>
+                  <Input
+                    id="emotion-session-id"
+                    value={emotionSessionId}
+                    onChange={(event) => setEmotionSessionId(event.target.value)}
+                    placeholder="Enter session or room ID"
+                    className="mt-2 text-sm sm:text-base h-10 sm:h-11"
+                  />
+                </div>
+                <Button onClick={() => void loadEmotionSummary()} disabled={emotionSummaryLoading} className="text-xs sm:text-sm h-9 sm:h-10">
+                  {emotionSummaryLoading ? "Loading..." : "Load Summary"}
+                </Button>
+              </div>
+              {emotionSummaryError && <p className="text-xs sm:text-sm text-destructive">{emotionSummaryError}</p>}
+            </CardContent>
+          </Card>
+
+          {emotionSummary && (
+            <div className="space-y-3 sm:space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-3">
+                {EMOTION_KEYS.map((key) => (
+                  <Card key={key} className="border-border/60">
+                    <CardContent className="p-3 sm:p-4">
+                      <p className="text-xs text-muted-foreground capitalize">{key}</p>
+                      <p className="text-lg sm:text-xl font-bold text-foreground mt-1">{emotionSummary.percentages[key] ?? 0}%</p>
+                      <p className="text-[11px] text-muted-foreground mt-1">{emotionSummary.counts[key] ?? 0} samples</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
+                <Card className="border-border/60">
+                  <CardContent className="p-3 sm:p-4">
+                    <p className="text-xs sm:text-sm text-muted-foreground">Total Samples</p>
+                    <p className="text-xl sm:text-2xl font-bold text-foreground mt-1">{emotionSummary.total}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-border/60">
+                  <CardContent className="p-3 sm:p-4">
+                    <p className="text-xs sm:text-sm text-muted-foreground">Engagement Score</p>
+                    <p className="text-xl sm:text-2xl font-bold text-foreground mt-1">{emotionSummary.engagement}%</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-border/60">
+                  <CardContent className="p-3 sm:p-4">
+                    <p className="text-xs sm:text-sm text-muted-foreground">Session ID</p>
+                    <p className="text-sm sm:text-base font-medium text-foreground mt-1 break-all">{emotionSummary.sessionId}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card className="border-border/60">
+                <CardHeader className="px-3 sm:px-6 py-4">
+                  <CardTitle className="text-base sm:text-lg">Student Emotion Breakdown</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">Each student’s emotion percentages and engagement score.</CardDescription>
+                </CardHeader>
+                <CardContent className="px-3 sm:px-6 pb-4 space-y-3">
+                  {emotionSummary.students.length > 0 ? emotionSummary.students.map((student) => (
+                    <div key={student.userId || student.studentName} className="rounded-lg border border-border/60 bg-muted/20 p-3 sm:p-4 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <div>
+                          <p className="font-medium text-foreground text-sm sm:text-base">{student.studentName}</p>
+                          <p className="text-xs text-muted-foreground">Latest emotion: {student.latestEmotion}</p>
+                        </div>
+                        <Badge className="w-fit bg-primary/10 text-primary border-0 text-xs">Engagement {student.engagement}%</Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {EMOTION_KEYS.map((key) => (
+                          <span key={key} className="rounded-full border border-border/70 bg-background px-2.5 py-1 text-[11px] text-muted-foreground">
+                            {key}: {student.percentages[key] ?? 0}%
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )) : (
+                    <p className="text-xs sm:text-sm text-muted-foreground">No emotion samples found for this session.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </section>
 
         <section className="space-y-3 sm:space-y-4">

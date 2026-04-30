@@ -510,6 +510,22 @@
   font-weight: 700;
 }
 
+.videochat-shell .tile-emotion {
+  position: absolute;
+  top: 0.55rem;
+  left: 0.55rem;
+  z-index: 1;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  backdrop-filter: blur(10px);
+}
+
 .videochat-shell .tile-overlay {
   position: absolute;
   inset: 0;

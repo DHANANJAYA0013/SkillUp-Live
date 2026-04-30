@@ -7,6 +7,7 @@ export default function VideoTile({
   isLocal = false,
   videoOn,
   audioOn,
+  emotion = "",
   externalVideoRef,
   onVideoReady,
 }) {
@@ -42,6 +43,7 @@ export default function VideoTile({
             <span>{name?.[0]?.toUpperCase() || "?"}</span>
           </div>
         )}
+        {emotion && <div className="tile-emotion">{emotion.charAt(0).toUpperCase() + emotion.slice(1)}</div>}
         <div className="tile-overlay">
           <span className="tile-name">{isLocal ? `${name} (You)` : name}</span>
           <div className="tile-indicators">
