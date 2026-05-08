@@ -19,23 +19,36 @@ const emotionSchema = new mongoose.Schema(
       trim: true,
       required: false,
     },
-    emotion: {
-      type: String,
-      required: true,
-      trim: true,
-      lowercase: true,
-      index: true,
-    },
-    timestamp: {
+    emotions: [
+      {
+        emotion: {
+          type: String,
+          trim: true,
+          lowercase: true,
+          required: true,
+        },
+        confidence: {
+          type: Number,
+          default: 0,
+          min: 0,
+          max: 1,
+        },
+        timestamp: {
+          type: Date,
+          default: Date.now,
+          index: true,
+        },
+      },
+    ],
+    lastEmotionAt: {
       type: Date,
-      required: true,
-      default: Date.now,
-      index: true,
+      default: null,
     },
   },
   { timestamps: true }
 );
 
-emotionSchema.index({ sessionId: 1, timestamp: 1 });
+emotionSchema.index({ sessionId: 1, updatedAt: 1 });
+emotionSchema.index({ sessionId: 1, userId: 1 });
 
 module.exports = mongoose.model("Emotion", emotionSchema);

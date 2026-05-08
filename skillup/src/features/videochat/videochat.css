@@ -488,6 +488,29 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  }
+
+  .videochat-shell .video-tile[data-local="true"] .tile-video {
+    /* Enhance brightness for better face detection */
+    filter: brightness(1.1) contrast(1.05);
+  }
+
+  .videochat-shell .emotion-debug {
+    position: absolute;
+    bottom: 0.55rem;
+    left: 0.55rem;
+    z-index: 2;
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(100, 150, 255, 0.3);
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 600;
+    font-family: monospace;
+    max-width: 120px;
+    line-height: 1.3;
+    backdrop-filter: blur(10px);
 }
 
 .videochat-shell .tile-avatar {

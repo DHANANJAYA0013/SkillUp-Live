@@ -10,9 +10,23 @@ export default function VideoTile({
   emotion = "",
   externalVideoRef,
   onVideoReady,
+  emotionConfidence = 0,
+  emotionExpressions = {},
+  debugMode = false,
 }) {
   const internalVideoRef = useRef(null);
   const videoRef = externalVideoRef || internalVideoRef;
+
+  const getTopExpressions = () => {
+    if (!emotionExpressions || Object.keys(emotionExpressions).length === 0) {
+      return "";
+    }
+    return Object.entries(emotionExpressions)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([key, value]) => `${key.slice(0, 3)}: ${(value * 100).toFixed(0)}%`)
+      .join("\n");
+  };
 
   useEffect(() => {
     if (videoRef.current && stream) {
@@ -28,16 +42,21 @@ export default function VideoTile({
     <div className="video-tile" data-local={isLocal}>
       <div className="video-wrap">
         {stream && videoOn ? (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted={muted}
-            className="tile-video"
-            onLoadedMetadata={onVideoReady}
-            onLoadedData={onVideoReady}
-            onCanPlay={onVideoReady}
-          />
+          <>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted={muted}
+              className="tile-video"
+              onLoadedMetadata={onVideoReady}
+              onLoadedData={onVideoReady}
+              onCanPlay={onVideoReady}
+            />
+            {debugMode && isLocal && emotionConfidence > 0 && (
+              <div className="emotion-debug">{getTopExpressions()}</div>
+            )}
+          </>
         ) : (
           <div className="tile-avatar">
             <span>{name?.[0]?.toUpperCase() || "?"}</span>

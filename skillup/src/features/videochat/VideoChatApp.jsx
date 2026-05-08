@@ -127,10 +127,15 @@ function Room({ userName, roomId, onLeave, onBack }) {
   const [emotion, setEmotion] = useState("neutral");
   const [emotionLog, setEmotionLog] = useState([]);
   const [emotionAlert, setEmotionAlert] = useState("");
+  const [emotionConfidence, setEmotionConfidence] = useState(0);
+  const [emotionExpressions, setEmotionExpressions] = useState({});
+  const [debugMode, setDebugMode] = useState(true);
   const [attendanceMarked, setAttendanceMarked] = useState(false);
   const [attendanceAttemptToken, setAttendanceAttemptToken] = useState(0);
   const attendanceRequestInFlightRef = useRef(false);
   const latestEmotionRef = useRef("neutral");
+  const smoothingRef = useRef(0);
+  const latestEmotionRefWithConfidence = useRef({ emotion: "neutral", confidence: 0 });
 
   const addPeer = useCallback((id, info) => {
     setPeers((prev) => ({
@@ -377,21 +382,17 @@ function Room({ userName, roomId, onLeave, onBack }) {
     const detectFaces = async () => {
       const videoElement = videoRef.current;
 
-      // More lenient checks - don't require localVideoReady to be true
       if (!videoElement || !localStreamRef.current || !faceModelsLoadedRef.current) {
         return;
       }
 
-      // Check if video has data to process (less strict than readyState >= 2)
       if (videoElement.readyState < 1) {
-        // HAVE_NOTHING - no video data yet
         return;
       }
 
       try {
         detectionCount++;
-        
-        // Use detectSingleFace() instead of detectAllFaces() for better performance
+
         const detection = await faceapi
           .detectSingleFace(
             videoElement,
@@ -416,34 +417,69 @@ function Room({ userName, roomId, onLeave, onBack }) {
                 score: (detection.score * 100).toFixed(1) + "%",
               }
             );
+
             setFaceDetected(true);
 
             if (detection.expressions) {
               const expressions = detection.expressions;
+
+              if (debugMode) console.log("[face-api] expressions:", expressions);
+
               const dominantEmotion = Object.keys(expressions).reduce((a, b) =>
                 expressions[a] > expressions[b] ? a : b
               );
 
-              latestEmotionRef.current = dominantEmotion;
-              setEmotion(dominantEmotion);
-              setEmotionLog((prev) => {
-                const next = [...prev, { emotion: dominantEmotion, time: Date.now() }];
-                return next.slice(-120);
-              });
+              const confidence = Number.isFinite(Number(expressions[dominantEmotion]))
+                ? Math.max(0, Math.min(1, Number(expressions[dominantEmotion])))
+                : 0;
+
+              setEmotionExpressions(expressions);
+              setEmotionConfidence(confidence);
+
+              // Ignore low-confidence detections
+              if (confidence < 0.6) {
+                if (debugMode) console.log(`[face-api] Low confidence (${(confidence * 100).toFixed(1)}%) for ${dominantEmotion}, ignoring.`);
+                return;
+              }
+
+              // Smoothing: require 2 consistent detections before updating
+              if (latestEmotionRefWithConfidence.current.emotion === dominantEmotion) {
+                smoothingRef.current = (smoothingRef.current || 0) + 1;
+              } else {
+                smoothingRef.current = 1;
+              }
+
+              if (smoothingRef.current >= 2 || dominantEmotion === "neutral") {
+                latestEmotionRefWithConfidence.current = { emotion: dominantEmotion, confidence };
+                latestEmotionRef.current = dominantEmotion;
+                setEmotion(dominantEmotion);
+                setEmotionLog((prev) => {
+                  const next = [...prev, { emotion: dominantEmotion, confidence, time: Date.now() }];
+                  return next.slice(-120);
+                });
+
+                if (debugMode) console.log(`[face-api] Emotion updated: ${dominantEmotion} (${(confidence * 100).toFixed(1)}%)`);
+              }
             }
           } else {
             console.log(`[face-api] No face detected (${detectionCount} attempts)`);
             setFaceDetected(false);
+            latestEmotionRefWithConfidence.current = { emotion: "neutral", confidence: 0 };
             latestEmotionRef.current = "neutral";
             setEmotion("neutral");
+            setEmotionConfidence(0);
+            smoothingRef.current = 0;
           }
         }
       } catch (error) {
         if (!cancelled) {
           console.warn("[face-api] Detection error:", error.message);
           setFaceDetected(false);
+          latestEmotionRefWithConfidence.current = { emotion: "neutral", confidence: 0 };
           latestEmotionRef.current = "neutral";
           setEmotion("neutral");
+          setEmotionConfidence(0);
+          smoothingRef.current = 0;
         }
       }
     };
@@ -452,14 +488,14 @@ function Room({ userName, roomId, onLeave, onBack }) {
     void detectFaces();
     const detectionInterval = window.setInterval(() => {
       void detectFaces();
-    }, 1500); // 1.5s interval for balanced performance
+    }, 2000); // Increased to 2000ms for better emotion stability
 
     return () => {
       cancelled = true;
       window.clearInterval(detectionInterval);
       console.log(`[face-api] Detection stopped. Total attempts: ${detectionCount}, Successful: ${successCount}`);
     };
-  }, [videoOn, localStream]);
+  }, [videoOn, localStream, debugMode]);
 
   useEffect(() => {
     if (emotionLog.length === 0) {
@@ -484,22 +520,33 @@ function Room({ userName, roomId, onLeave, onBack }) {
     let cancelled = false;
 
     const sendEmotion = async () => {
+      const latest = latestEmotionRefWithConfidence.current || { emotion: "neutral", confidence: 0 };
       const payload = {
         userId: user?._id ?? null,
         sessionId: roomId,
         name: userName,
-        emotion: latestEmotionRef.current || "neutral",
+        emotion: latest.emotion || "neutral",
+        confidence: typeof latest.confidence === "number" ? Math.max(0, Math.min(1, latest.confidence)) : 0,
         timestamp: Date.now(),
       };
 
+      if (debugMode) {
+        console.log("[emotion] Sending emotion payload:", payload);
+      }
+
       try {
-        await fetch(`${API_BASE}/emotion`, {
+        const response = await fetch(`${API_BASE}/emotion`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
+
+        if (debugMode && response.ok) {
+          const data = await response.json().catch(() => null);
+          if (data && data.skipped) {
+            console.log("[emotion] Server skipped duplicate emotion (throttle)");
+          }
+        }
       } catch (error) {
         if (!cancelled) {
           console.warn("[emotion] Failed to send emotion sample:", error);
@@ -516,7 +563,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
       cancelled = true;
       window.clearInterval(emotionInterval);
     };
-  }, [roomId, user?._id, userName]);
+  }, [roomId, user?._id, userName, debugMode]);
 
   const handleLocalVideoReady = useCallback(() => {
     const videoEl = videoRef.current;
