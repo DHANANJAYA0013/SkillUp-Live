@@ -131,6 +131,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
   const [emotionExpressions, setEmotionExpressions] = useState({});
   const [debugMode, setDebugMode] = useState(true);
   const [attendanceMarked, setAttendanceMarked] = useState(false);
+  const [emotionTrackingEnabled, setEmotionTrackingEnabled] = useState(false);
   const [attendanceAttemptToken, setAttendanceAttemptToken] = useState(0);
   const attendanceRequestInFlightRef = useRef(false);
   const latestEmotionRefWithConfidence = useRef({ emotion: "neutral", confidence: 0 });
@@ -500,14 +501,51 @@ function Room({ userName, roomId, onLeave, onBack }) {
 
         console.log("Emotion:", dominantEmotion, confidence);
 
+        if (confidence <= 0) {
+          return;
+        }
+
         setEmotionExpressions(expressions);
         setEmotion(dominantEmotion);
         setEmotionConfidence(confidence);
         latestEmotionRefWithConfidence.current = { emotion: dominantEmotion, confidence };
-        setEmotionLog((prev) => {
-          const next = [...prev, { emotion: dominantEmotion, confidence, time: Date.now() }];
-          return next.slice(-120);
-        });
+
+        const payload = {
+          userId: user?._id ?? null,
+          sessionId: roomId,
+          name: userName,
+          emotion: dominantEmotion,
+          confidence,
+          timestamp: Date.now(),
+        };
+
+        console.log("Sending emotion to backend", payload);
+
+        try {
+          const response = await fetch(`${API_BASE}/emotion`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          console.log("[emotion] Response status:", response.status);
+
+          if (response.ok) {
+            const data = await response.json().catch(() => null);
+            console.log("[emotion] Response data:", data);
+            setEmotionLog((prev) => {
+              const next = [...prev, { emotion: dominantEmotion, confidence, time: Date.now() }];
+              return next.slice(-120);
+            });
+          } else {
+            const errorData = await response.json().catch(() => null);
+            console.error("[emotion] Response error:", errorData);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            console.error("[emotion] Failed to send emotion sample:", error);
+          }
+        }
       } catch (error) {
         if (!cancelled) {
           console.error("[face-api] Emotion detection error:", error);
@@ -515,15 +553,21 @@ function Room({ userName, roomId, onLeave, onBack }) {
       }
     };
 
+    if (!attendanceMarked || !emotionTrackingEnabled) {
+      return;
+    }
+
     const emotionInterval = window.setInterval(() => {
       void detectEmotion();
     }, 10000);
+
+    void detectEmotion();
 
     return () => {
       cancelled = true;
       window.clearInterval(emotionInterval);
     };
-  }, [videoOn, localStream, debugMode, attendanceMarked]);
+  }, [videoOn, localStream, debugMode, attendanceMarked, emotionTrackingEnabled, roomId, user?._id, userName]);
 
   useEffect(() => {
     if (emotionLog.length === 0) {
@@ -541,66 +585,6 @@ function Room({ userName, roomId, onLeave, onBack }) {
       setEmotionAlert("");
     }
   }, [emotionLog]);
-
-  useEffect(() => {
-    if (!roomId) return;
-
-    let cancelled = false;
-
-    const sendEmotion = async () => {
-      const latest = latestEmotionRefWithConfidence.current || { emotion: "", confidence: 0 };
-      const now = Date.now();
-
-      console.log("Sending emotion to backend", latest);
-
-      if (!latest.emotion) {
-        console.log("No emotion to send");
-        return;
-      }
-
-      const payload = {
-        userId: user?._id ?? null,
-        sessionId: roomId,
-        name: userName,
-        emotion: latest.emotion,
-        confidence: typeof latest.confidence === "number" ? Math.max(0, Math.min(1, latest.confidence)) : 0,
-        timestamp: now,
-      };
-
-      console.log("[emotion] Sending emotion payload:", payload);
-
-      try {
-        const response = await fetch(`${API_BASE}/emotion`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        console.log("[emotion] Response status:", response.status);
-
-        if (response.ok) {
-          const data = await response.json().catch(() => null);
-          console.log("[emotion] Response data:", data);
-        } else {
-          const errorData = await response.json().catch(() => null);
-          console.error("[emotion] Response error:", errorData);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.error("[emotion] Failed to send emotion sample:", error);
-        }
-      }
-    };
-
-    const emotionInterval = window.setInterval(() => {
-      void sendEmotion();
-    }, 10000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(emotionInterval);
-    };
-  }, [roomId, user?._id, userName, debugMode]);
 
   const handleLocalVideoReady = useCallback(() => {
     const videoEl = videoRef.current;
@@ -672,6 +656,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
 
         if (!cancelled && (res.ok || alreadyMarked)) {
           setAttendanceMarked(true);
+          setEmotionTrackingEnabled(true);
           console.log("[attendance] Successfully marked attendance for user:", {
             userName,
             userId: userId ? `${userId}` : "(no userId)",
@@ -810,13 +795,15 @@ function Room({ userName, roomId, onLeave, onBack }) {
             {!faceModelReady
               ? "Loading face model..."
               : attendanceMarked
-              ? "Face Detected - Attendance Marked"
+              ? "Attendance marked"
               : faceDetected
                 ? "Face detected - Marking attendance..."
-                : "Detecting Face..."}
+                : "Waiting for face detection..."}
           </div>
           <div className="face-status" style={{ fontSize: 12, marginTop: 6, opacity: 0.95 }}>
-            {attendanceMarked
+            {!videoOn
+              ? "Camera off"
+              : attendanceMarked
               ? `Current emotion: ${emotion ? emotion.charAt(0).toUpperCase() + emotion.slice(1) : "Detecting..."}`
               : "Current emotion: Waiting for attendance"}
           </div>
