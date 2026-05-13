@@ -464,7 +464,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
         return;
       }
 
-      if (videoElement.readyState < 1) {
+      if (videoElement.readyState < 2) {
         console.log("Emotion loop waiting for video readiness");
         return;
       }
@@ -478,20 +478,21 @@ function Room({ userName, roomId, onLeave, onBack }) {
               scoreThreshold: 0.5,
             })
           )
-          .withFaceLandmarks(true)
+          .withFaceLandmarks()
           .withFaceExpressions();
 
         console.log("Detection result:", detection);
 
         if (!detection || !detection.expressions) {
           console.log("No expressions detected");
-          setEmotion("");
-          setEmotionConfidence(0);
-          latestEmotionRefWithConfidence.current = { emotion: "", confidence: 0 };
+          // Keep displaying the last detected emotion (don't reset)
+          // setEmotion("");
+          // setEmotionConfidence(0);
           return;
         }
 
-        console.log("Expressions:", detection.expressions);
+        // DEBUG: Log full expressions object
+        console.log("[EMOTION-DEBUG] Full expressions object:", detection.expressions);
 
         const expressions = detection.expressions;
         const dominantEmotion = Object.keys(expressions).reduce((a, b) =>
@@ -499,9 +500,12 @@ function Room({ userName, roomId, onLeave, onBack }) {
         );
         const confidence = expressions[dominantEmotion];
 
-        console.log("Emotion:", dominantEmotion, confidence);
+        console.log("[EMOTION-DEBUG] Dominant emotion:", dominantEmotion, "Confidence:", confidence);
+        console.log("[EMOTION-DEBUG] All expression values:", Object.entries(expressions).map(([k, v]) => `${k}: ${(v * 100).toFixed(1)}%`).join(", "));
 
-        if (confidence <= 0) {
+        // RELAXED: Accept any confidence >= 0.05 for testing
+        if (confidence < 0.05) {
+          console.log("[EMOTION-DEBUG] Confidence too low (", confidence, "), skipping");
           return;
         }
 
@@ -519,7 +523,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
           timestamp: Date.now(),
         };
 
-        console.log("Sending emotion to backend", payload);
+        console.log("[EMOTION-DEBUG] Sending emotion to backend:", payload);
 
         try {
           const response = await fetch(`${API_BASE}/emotion`, {
