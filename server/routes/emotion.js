@@ -37,7 +37,22 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "userId, sessionId and emotion are required" });
     }
 
-    const timestamp = new Date();
+    const timestamp = Number.isFinite(Number(req.body?.timestamp)) ? new Date(Number(req.body.timestamp)) : new Date();
+    const SKIP_WINDOW_MS = 10000; // match frontend 10s cadence
+
+    // Prevent noisy writes: skip if last stored emotion for this user/session is within SKIP_WINDOW_MS
+    try {
+      const existing = await Emotion.findOne({ userId, sessionId }).lean();
+      if (existing && existing.lastEmotionAt) {
+        const lastTs = new Date(existing.lastEmotionAt).getTime();
+        if (timestamp.getTime() - lastTs < SKIP_WINDOW_MS) {
+          console.log("[emotion] Skipped write due to server-side throttle", { userId, sessionId, emotion, confidence, timestamp });
+          return res.status(200).json({ success: true, skipped: true });
+        }
+      }
+    } catch (err) {
+      console.warn("[emotion] Error checking existing emotion:", err && err.message ? err.message : err);
+    }
 
     const updated = await Emotion.findOneAndUpdate(
       {
@@ -86,7 +101,7 @@ router.get("/summary", async (req, res) => {
 
     // Get all emotion documents for this session
     const emotionDocs = await Emotion.find({ sessionId })
-      .populate("userId", "name email")
+      .populate("userId", "name email role")
       .lean();
 
     const counts = createEmptyCounts();
@@ -101,6 +116,7 @@ router.get("/summary", async (req, res) => {
       if (!studentMap.has(studentKey)) {
         studentMap.set(studentKey, {
           userId: user?._id ? String(user._id) : null,
+          userRole: typeof user?.role === "string" ? user.role : null,
           studentName,
           total: 0,
           counts: createEmptyCounts(),
@@ -149,6 +165,7 @@ router.get("/summary", async (req, res) => {
     const students = Array.from(studentMap.values())
       .map((student) => ({
         userId: student.userId,
+        userRole: student.userRole,
         studentName: student.studentName,
         total: student.total,
         counts: student.counts,

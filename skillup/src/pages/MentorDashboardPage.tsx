@@ -8,6 +8,7 @@ import Navbar from "@/components/Navbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import SessionAttendanceView from "@/components/SessionAttendanceView";
 import { useAuth } from "@/features/authsystem/AuthContext";
 import { API_BASE } from "@/features/authsystem/config";
 
@@ -31,6 +32,7 @@ interface DbSession {
 
 interface EmotionSummaryStudent {
   userId: string | null;
+  userRole: string | null;
   studentName: string;
   total: number;
   counts: Record<string, number>;
@@ -151,7 +153,9 @@ const MentorDashboardPage = () => {
       setEmotionError("");
 
       try {
-        const res = await fetch(`${API_BASE}/emotion/summary?sessionId=${encodeURIComponent(selectedSessionId)}`, {
+        const currentSession = sessions.find((session) => session._id === selectedSessionId) || sessions[0] || null;
+        const sessionIdentifier = currentSession?.roomId || selectedSessionId;
+        const res = await fetch(`${API_BASE}/emotion/summary?sessionId=${encodeURIComponent(sessionIdentifier)}`, {
           signal: controller.signal,
         });
         const data = await parseApiResponse(res);
@@ -176,18 +180,54 @@ const MentorDashboardPage = () => {
 
     void loadSummary();
     return () => controller.abort();
-  }, [selectedSessionId]);
+  }, [selectedSessionId, sessions]);
 
   const selectedSession = useMemo(
     () => sessions.find((session) => session._id === selectedSessionId) || sessions[0] || null,
     [selectedSessionId, sessions]
   );
 
+  const visibleEmotionSummary = useMemo(() => {
+    if (!emotionSummary) return null;
+
+    const mentorId = selectedSession?.mentorId;
+    const filteredStudents = emotionSummary.students.filter((student) => student.userId && student.userId !== mentorId);
+    const counts = EMOTION_KEYS.reduce((acc, key) => {
+      acc[key] = 0;
+      return acc;
+    }, {} as Record<string, number>);
+
+    let total = 0;
+
+    filteredStudents.forEach((student) => {
+      total += student.total;
+      EMOTION_KEYS.forEach((key) => {
+        counts[key] += student.counts[key] ?? 0;
+      });
+    });
+
+    const percentages = EMOTION_KEYS.reduce((acc, key) => {
+      acc[key] = total > 0 ? Number(((counts[key] / total) * 100).toFixed(1)) : 0;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const engagement = total > 0 ? Number((((counts.happy + counts.neutral) / total) * 100).toFixed(1)) : 0;
+
+    return {
+      ...emotionSummary,
+      total,
+      counts,
+      percentages,
+      engagement,
+      students: filteredStudents,
+    };
+  }, [emotionSummary, selectedSession?.mentorId]);
+
   const metrics = [
     { label: "Sessions Created", value: String(sessions.length), icon: Calendar },
     { label: "Live Now", value: String(sessions.filter((session) => session.status === "live").length), icon: Radio },
     { label: "Completed", value: String(sessions.filter((session) => session.status === "completed").length), icon: BarChart3 },
-    { label: "Students Tracked", value: String(emotionSummary?.students.length || 0), icon: Users },
+    { label: "Students Tracked", value: String(visibleEmotionSummary?.students.length || 0), icon: Users },
   ];
 
   if (loading) {
@@ -295,13 +335,13 @@ const MentorDashboardPage = () => {
                   <p className="text-sm text-muted-foreground">Loading emotion data...</p>
                 ) : emotionError ? (
                   <p className="text-sm text-destructive">{emotionError}</p>
-                ) : emotionSummary ? (
+                ) : visibleEmotionSummary ? (
                   <>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {EMOTION_KEYS.map((key) => (
                         <div key={key} className="rounded-xl border border-border/60 bg-muted/20 p-3">
                           <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{key}</p>
-                          <p className="mt-1 text-lg font-bold text-foreground">{emotionSummary.percentages[key] ?? 0}%</p>
+                          <p className="mt-1 text-lg font-bold text-foreground">{visibleEmotionSummary.percentages[key] ?? 0}%</p>
                         </div>
                       ))}
                     </div>
@@ -309,26 +349,27 @@ const MentorDashboardPage = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
                         <p className="text-xs text-muted-foreground">Total Samples</p>
-                        <p className="text-2xl font-bold text-foreground mt-1">{emotionSummary.total}</p>
+                        <p className="text-2xl font-bold text-foreground mt-1">{visibleEmotionSummary.total}</p>
                       </div>
                       <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
                         <p className="text-xs text-muted-foreground">Engagement Score</p>
-                        <p className="text-2xl font-bold text-foreground mt-1">{emotionSummary.engagement}%</p>
+                        <p className="text-2xl font-bold text-foreground mt-1">{visibleEmotionSummary.engagement}%</p>
                       </div>
                     </div>
 
                     <div className="space-y-3">
                       <div className="flex items-center justify-between gap-3">
                         <h3 className="text-sm font-semibold text-foreground">Student Breakdown</h3>
-                        <Badge className="border-0 bg-primary/10 text-primary">{emotionSummary.students.length} students</Badge>
+                        <Badge className="border-0 bg-primary/10 text-primary">{visibleEmotionSummary.students.length} students</Badge>
                       </div>
 
                       <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-                        {emotionSummary.students.length > 0 ? emotionSummary.students.map((student) => (
+                        {visibleEmotionSummary.students.length > 0 ? visibleEmotionSummary.students.map((student) => (
                           <div key={student.userId || student.studentName} className="rounded-2xl border border-border/60 bg-white/80 p-4">
                             <div className="flex items-center justify-between gap-3">
                               <div>
                                 <p className="font-semibold text-foreground">{student.studentName}</p>
+                                <p className="text-xs text-muted-foreground capitalize">Role: {student.userRole || "learner"}</p>
                                 <p className="text-xs text-muted-foreground">Latest emotion: {student.latestEmotion}</p>
                               </div>
                               <Badge className="border-0 bg-slate-900 text-white">Engagement {student.engagement}%</Badge>
@@ -357,6 +398,22 @@ const MentorDashboardPage = () => {
               </CardContent>
             </Card>
           </section>
+
+          {selectedSession && (
+            <section>
+              <Card className="border-border/60 bg-white/85 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
+                <CardHeader className="space-y-2">
+                  <CardTitle className="text-lg sm:text-xl">Attendance Breakdown</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">
+                    Face detected and face not detected users for {selectedSession.title} · Room {selectedSession.roomId}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <SessionAttendanceView sessionId={selectedSession._id} mentorId={selectedSession.mentorId} />
+                </CardContent>
+              </Card>
+            </section>
+          )}
 
           <section className="grid md:grid-cols-3 gap-4">
             <Card className="border-border/60 bg-white/80 backdrop-blur-xl">
