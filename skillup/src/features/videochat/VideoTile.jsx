@@ -62,7 +62,16 @@ export default function VideoTile({
             <span>{name?.[0]?.toUpperCase() || "?"}</span>
           </div>
         )}
-        {emotion && <div className="tile-emotion">{emotion.charAt(0).toUpperCase() + emotion.slice(1)}</div>}
+        <div className="tile-emotion">
+          {emotion ? (
+            <>
+              {emotion.charAt(0).toUpperCase() + emotion.slice(1)}
+              {emotionConfidence > 0 ? ` (${Math.round(emotionConfidence * 100)}%)` : ""}
+            </>
+          ) : (
+            "Detecting..."
+          )}
+        </div>
         <div className="tile-overlay">
           <span className="tile-name">{isLocal ? `${name} (You)` : name}</span>
           <div className="tile-indicators">

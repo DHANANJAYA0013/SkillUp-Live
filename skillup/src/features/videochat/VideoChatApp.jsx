@@ -123,7 +123,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
   const [spotlightId, setSpotlightId] = useState(null);
   const [faceModelReady, setFaceModelReady] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
-  const [emotion, setEmotion] = useState("neutral");
+  const [emotion, setEmotion] = useState("");
   const [emotionLog, setEmotionLog] = useState([]);
   const [emotionAlert, setEmotionAlert] = useState("");
   const [emotionConfidence, setEmotionConfidence] = useState(0);
@@ -378,7 +378,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
     let detectionCount = 0;
     let successCount = 0;
 
-    const detectFaces = async () => {
+    const detectAttendanceFace = async () => {
       const videoElement = videoRef.current;
 
       if (!videoElement || !localStreamRef.current || !faceModelsLoadedRef.current) {
@@ -392,107 +392,168 @@ function Room({ userName, roomId, onLeave, onBack }) {
       try {
         detectionCount++;
 
+        const detection = await faceapi.detectSingleFace(
+          videoElement,
+          new faceapi.TinyFaceDetectorOptions({
+            inputSize: 320,
+            scoreThreshold: 0.5,
+          })
+        );
+
+        if (!cancelled) {
+          if (detection) {
+            successCount++;
+            console.log("[face-api] Face detected", {
+              x: Math.round(detection.box.x),
+              y: Math.round(detection.box.y),
+              width: Math.round(detection.box.width),
+              height: Math.round(detection.box.height),
+              score: (detection.score * 100).toFixed(1) + "%",
+            });
+            setFaceDetected(true);
+          } else {
+            console.log(`[face-api] No face detected (${detectionCount} attempts)`);
+            setFaceDetected(false);
+          }
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn("[face-api] Attendance detection error:", error.message);
+          setFaceDetected(false);
+        }
+      }
+    };
+
+    void detectAttendanceFace();
+    const detectionInterval = window.setInterval(() => {
+      void detectAttendanceFace();
+    }, 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(detectionInterval);
+      console.log(`[face-api] Detection stopped. Total attempts: ${detectionCount}, Successful: ${successCount}`);
+    };
+  }, [videoOn, localStream, debugMode]);
+
+  useEffect(() => {
+    if (!videoOn) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const detectEmotion = async () => {
+      const videoElement = videoRef.current;
+
+      if (!videoElement || !localStreamRef.current || !faceModelsLoadedRef.current) {
+        return;
+      }
+
+      if (videoElement.readyState < 1) {
+        return;
+      }
+
+      try {
         const detection = await faceapi
           .detectSingleFace(
             videoElement,
             new faceapi.TinyFaceDetectorOptions({
-              inputSize: 416,
+              inputSize: 320,
               scoreThreshold: 0.5,
             })
           )
           .withFaceLandmarks(true)
           .withFaceExpressions();
 
-        if (!cancelled) {
-          if (detection) {
-            successCount++;
-            console.log(
-              `[face-api] Face detected (#${successCount}/${detectionCount}):`,
-              {
-                x: Math.round(detection.box.x),
-                y: Math.round(detection.box.y),
-                width: Math.round(detection.box.width),
-                height: Math.round(detection.box.height),
-                score: (detection.score * 100).toFixed(1) + "%",
-              }
-            );
-
-            setFaceDetected(true);
-
-            if (detection.expressions) {
-              const expressions = detection.expressions;
-
-              if (debugMode) console.log("[face-api] expressions:", expressions);
-
-              const dominantEmotion = Object.keys(expressions).reduce((a, b) =>
-                expressions[a] > expressions[b] ? a : b
-              );
-
-              const confidence = Number.isFinite(Number(expressions[dominantEmotion]))
-                ? Math.max(0, Math.min(1, Number(expressions[dominantEmotion])))
-                : 0;
-
-              setEmotionExpressions(expressions);
-              setEmotionConfidence(confidence);
-
-              // Ignore low-confidence detections
-              if (confidence < 0.6) {
-                if (debugMode) console.log(`[face-api] Low confidence (${(confidence * 100).toFixed(1)}%) for ${dominantEmotion}, ignoring.`);
-                return;
-              }
-
-              // Smoothing: require 2 consistent detections before updating
-              if (latestEmotionRefWithConfidence.current.emotion === dominantEmotion) {
-                smoothingRef.current = (smoothingRef.current || 0) + 1;
-              } else {
-                smoothingRef.current = 1;
-              }
-
-              if (smoothingRef.current >= 2 || dominantEmotion === "neutral") {
-                latestEmotionRefWithConfidence.current = { emotion: dominantEmotion, confidence };
-                latestEmotionRef.current = dominantEmotion;
-                setEmotion(dominantEmotion);
-                setEmotionLog((prev) => {
-                  const next = [...prev, { emotion: dominantEmotion, confidence, time: Date.now() }];
-                  return next.slice(-120);
-                });
-
-                if (debugMode) console.log(`[face-api] Emotion updated: ${dominantEmotion} (${(confidence * 100).toFixed(1)}%)`);
-              }
-            }
-          } else {
-            console.log(`[face-api] No face detected (${detectionCount} attempts)`);
-            setFaceDetected(false);
-            latestEmotionRefWithConfidence.current = { emotion: "neutral", confidence: 0 };
-            latestEmotionRef.current = "neutral";
-            setEmotion("neutral");
-            setEmotionConfidence(0);
-            smoothingRef.current = 0;
-          }
+        if (!detection || !detection.expressions) {
+          return;
         }
+
+        console.log("Expressions:", detection.expressions);
+
+        const expressions = detection.expressions;
+        const sortedExpressions = Object.entries(expressions).sort((a, b) => b[1] - a[1]);
+
+        if (sortedExpressions.length === 0) {
+          setEmotion("");
+          setEmotionConfidence(0);
+          latestEmotionRefWithConfidence.current = { emotion: "", confidence: 0 };
+          return;
+        }
+
+        const [emotionName, rawConfidence] = sortedExpressions[0];
+        const confidence = Number.isFinite(Number(rawConfidence))
+          ? Math.max(0, Math.min(1, Number(rawConfidence)))
+          : 0;
+
+        console.log("Dominant emotion:", emotionName, confidence);
+
+        setEmotionExpressions(expressions);
+
+        if (confidence <= 0 || confidence < 0.55) {
+          console.log("Low confidence emotion ignored");
+          setEmotion("");
+          setEmotionConfidence(0);
+          latestEmotionRefWithConfidence.current = { emotion: "", confidence: 0 };
+          return;
+        }
+
+        let resolvedEmotion = emotionName;
+        let resolvedConfidence = confidence;
+
+        if (resolvedEmotion === "neutral" && confidence < 0.75) {
+          setEmotion("");
+          setEmotionConfidence(0);
+          latestEmotionRefWithConfidence.current = { emotion: "", confidence: 0 };
+          return;
+        }
+
+        if (latestEmotionRefWithConfidence.current.emotion === resolvedEmotion) {
+          smoothingRef.current = (smoothingRef.current || 0) + 1;
+        } else {
+          smoothingRef.current = 1;
+        }
+
+        recentEmotionsRef.current = [
+          ...recentEmotionsRef.current.slice(-2),
+          { emotion: resolvedEmotion, confidence: resolvedConfidence, time: Date.now() },
+        ];
+
+        const recentEmotionCounts = recentEmotionsRef.current.reduce((acc, entry) => {
+          acc[entry.emotion] = (acc[entry.emotion] || 0) + 1;
+          return acc;
+        }, {});
+
+        if ((recentEmotionCounts[resolvedEmotion] || 0) < 2) {
+          setEmotion("");
+          setEmotionConfidence(0);
+          latestEmotionRefWithConfidence.current = { emotion: "", confidence: 0 };
+          return;
+        }
+
+        latestEmotionRefWithConfidence.current = { emotion: resolvedEmotion, confidence: resolvedConfidence };
+        latestEmotionRef.current = resolvedEmotion;
+        setEmotion(resolvedEmotion);
+        setEmotionConfidence(resolvedConfidence);
+        setEmotionLog((prev) => {
+          const next = [...prev, { emotion: resolvedEmotion, confidence: resolvedConfidence, time: Date.now() }];
+          return next.slice(-120);
+        });
       } catch (error) {
         if (!cancelled) {
-          console.warn("[face-api] Detection error:", error.message);
-          setFaceDetected(false);
-          latestEmotionRefWithConfidence.current = { emotion: "neutral", confidence: 0 };
-          latestEmotionRef.current = "neutral";
-          setEmotion("neutral");
-          setEmotionConfidence(0);
-          smoothingRef.current = 0;
+          console.warn("[face-api] Emotion detection error:", error.message);
         }
       }
     };
 
-    // Start detection immediately and then on interval
-    void detectFaces();
-    const detectionInterval = window.setInterval(() => {
-      void detectFaces();
-    }, 2000); // Increased to 2000ms for better emotion stability
+    const emotionInterval = window.setInterval(() => {
+      void detectEmotion();
+    }, 10000);
 
     return () => {
       cancelled = true;
-      window.clearInterval(detectionInterval);
-      console.log(`[face-api] Detection stopped. Total attempts: ${detectionCount}, Successful: ${successCount}`);
+      window.clearInterval(emotionInterval);
     };
   }, [videoOn, localStream, debugMode]);
 
@@ -520,13 +581,27 @@ function Room({ userName, roomId, onLeave, onBack }) {
 
     const sendEmotion = async () => {
       const latest = latestEmotionRefWithConfidence.current || { emotion: "neutral", confidence: 0 };
+      const now = Date.now();
+
+      if (!latest.emotion || latest.confidence <= 0 || latest.confidence < 0.55) {
+        return;
+      }
+
+      if (latest.emotion === "neutral" && latest.confidence < 0.75) {
+        return;
+      }
+
+      if (lastSavedEmotionRef.current.emotion === latest.emotion && now - lastSavedEmotionRef.current.timestamp < 10000) {
+        return;
+      }
+
       const payload = {
         userId: user?._id ?? null,
         sessionId: roomId,
         name: userName,
-        emotion: latest.emotion || "neutral",
+        emotion: latest.emotion,
         confidence: typeof latest.confidence === "number" ? Math.max(0, Math.min(1, latest.confidence)) : 0,
-        timestamp: Date.now(),
+        timestamp: now,
       };
 
       if (debugMode) {
@@ -544,7 +619,11 @@ function Room({ userName, roomId, onLeave, onBack }) {
           const data = await response.json().catch(() => null);
           if (data && data.skipped) {
             console.log("[emotion] Server skipped duplicate emotion (throttle)");
+          } else {
+            lastSavedEmotionRef.current = { emotion: latest.emotion, timestamp: now };
           }
+        } else if (response.ok) {
+          lastSavedEmotionRef.current = { emotion: latest.emotion, timestamp: now };
         }
       } catch (error) {
         if (!cancelled) {
@@ -553,10 +632,9 @@ function Room({ userName, roomId, onLeave, onBack }) {
       }
     };
 
-    void sendEmotion();
     const emotionInterval = window.setInterval(() => {
       void sendEmotion();
-    }, 7000);
+    }, 10000);
 
     return () => {
       cancelled = true;
@@ -864,6 +942,9 @@ function Room({ userName, roomId, onLeave, onBack }) {
                     videoOn={spotlightUser.videoOn}
                     audioOn={spotlightUser.audioOn}
                     emotion={spotlightUser.isLocal ? emotion : ""}
+                    emotionConfidence={spotlightUser.isLocal ? emotionConfidence : 0}
+                    emotionExpressions={spotlightUser.isLocal ? emotionExpressions : {}}
+                    debugMode={debugMode}
                     externalVideoRef={spotlightUser.isLocal ? videoRef : undefined}
                     onVideoReady={spotlightUser.isLocal ? handleLocalVideoReady : undefined}
                   />
@@ -880,6 +961,9 @@ function Room({ userName, roomId, onLeave, onBack }) {
                       videoOn={p.videoOn}
                       audioOn={p.audioOn}
                       emotion={p.isLocal ? emotion : ""}
+                      emotionConfidence={p.isLocal ? emotionConfidence : 0}
+                      emotionExpressions={p.isLocal ? emotionExpressions : {}}
+                      debugMode={debugMode}
                       externalVideoRef={p.isLocal ? videoRef : undefined}
                       onVideoReady={p.isLocal ? handleLocalVideoReady : undefined}
                     />
