@@ -134,11 +134,12 @@ function Room({ userName, roomId, onLeave, onBack }) {
   const presentStatusSentRef = useRef(false);
   const previousVideoStateRef = useRef(videoOn);
   const previousFaceStateRef = useRef(false);
+  const lastAttentionStatusRef = useRef("");
 
   const addPeer = useCallback((id, info) => {
     setPeers((prev) => ({
       ...prev,
-      [id]: { name: info.name, stream: null, videoOn: true, audioOn: true, ...prev[id] },
+      [id]: { name: info.name, stream: null, videoOn: true, audioOn: true, attentionStatus: "", ...prev[id] },
     }));
   }, []);
 
@@ -161,6 +162,13 @@ function Room({ userName, roomId, onLeave, onBack }) {
     setPeers((prev) => ({
       ...prev,
       [id]: { ...prev[id], videoOn: video, audioOn: audio },
+    }));
+  }, []);
+
+  const setPeerAttention = useCallback((id, status) => {
+    setPeers((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], attentionStatus: status },
     }));
   }, []);
 
@@ -354,6 +362,10 @@ function Room({ userName, roomId, onLeave, onBack }) {
       socket.on("peer-media-state", ({ peerId, video, audio }) => {
         setPeerMedia(peerId, { video, audio });
       });
+
+      socket.on("peer-attention-state", ({ peerId, status }) => {
+        setPeerAttention(peerId, status);
+      });
     }
 
     init();
@@ -364,7 +376,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
       closeAll();
       socketRef.current?.disconnect();
     };
-  }, [addPeer, closeAll, closePC, handleAnswer, handleIceCandidate, handleOffer, makeOffer, removePeer, roomId, setPeerMedia, user?._id, userName]);
+  }, [addPeer, closeAll, closePC, handleAnswer, handleIceCandidate, handleOffer, makeOffer, removePeer, roomId, setPeerMedia, setPeerAttention, user?._id, userName]);
 
   useEffect(() => {
     if (attendanceMarked) {
@@ -474,6 +486,13 @@ function Room({ userName, roomId, onLeave, onBack }) {
         if (!cancelled) {
           console.error("[engagement] Failed to send status:", error);
         }
+      }
+
+      // Emit attention status through socket only if it changed
+      if (lastAttentionStatusRef.current !== status) {
+        lastAttentionStatusRef.current = status;
+        socketRef.current?.emit("attention-state", { status, userName, roomId });
+        console.log("[engagement] Emitted attention-state to peers:", { status, roomId });
       }
     };
 
@@ -609,6 +628,11 @@ function Room({ userName, roomId, onLeave, onBack }) {
       } catch (error) {
         console.error("[engagement] Failed to send Present status:", error);
       }
+
+      // Emit Present status through socket
+      lastAttentionStatusRef.current = "Present";
+      socketRef.current?.emit("attention-state", { status: "Present", userName, roomId });
+      console.log("[engagement] Emitted Present attention-state to peers");
     };
 
     void sendPresentStatus();
@@ -788,7 +812,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
   };
 
   const allParticipants = [
-    { id: "local", name: userName, stream: localStream, isLocal: true, videoOn, audioOn },
+    { id: "local", name: userName, stream: localStream, isLocal: true, videoOn, audioOn, emotion },
     ...Object.entries(peers).map(([id, p]) => ({
       id,
       name: p.name,
@@ -796,6 +820,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
       isLocal: false,
       videoOn: p.videoOn !== false,
       audioOn: p.audioOn !== false,
+      emotion: p.attentionStatus || "",
     })),
   ];
 
@@ -879,7 +904,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
                     isLocal={p.isLocal}
                     videoOn={p.videoOn}
                     audioOn={p.audioOn}
-                    emotion={p.isLocal ? emotion : ""}
+                    emotion={p.emotion}
                     externalVideoRef={p.isLocal ? videoRef : undefined}
                     onVideoReady={p.isLocal ? handleLocalVideoReady : undefined}
                   />
@@ -897,7 +922,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
                     isLocal={spotlightUser.isLocal}
                     videoOn={spotlightUser.videoOn}
                     audioOn={spotlightUser.audioOn}
-                    emotion={spotlightUser.isLocal ? emotion : ""}
+                    emotion={spotlightUser.emotion}
                     externalVideoRef={spotlightUser.isLocal ? videoRef : undefined}
                     onVideoReady={spotlightUser.isLocal ? handleLocalVideoReady : undefined}
                   />
@@ -913,7 +938,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
                       isLocal={p.isLocal}
                       videoOn={p.videoOn}
                       audioOn={p.audioOn}
-                      emotion={p.isLocal ? emotion : ""}
+                      emotion={p.emotion}
                       externalVideoRef={p.isLocal ? videoRef : undefined}
                       onVideoReady={p.isLocal ? handleLocalVideoReady : undefined}
                     />

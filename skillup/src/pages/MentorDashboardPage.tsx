@@ -207,13 +207,9 @@ const MentorDashboardPage = () => {
     };
 
     void loadSummary();
-    const refreshInterval = window.setInterval(() => {
-      void loadSummary();
-    }, 10000);
 
     return () => {
       controller.abort();
-      window.clearInterval(refreshInterval);
     };
   }, [selectedSession?.roomId]);
 

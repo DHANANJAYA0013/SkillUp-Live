@@ -219,6 +219,16 @@ io.on("connection", (socket) => {
     });
   });
 
+  socket.on("attention-state", ({ status }) => {
+    const roomId = socket.data.roomId;
+    if (!roomId || !status) return;
+
+    socket.to(roomId).emit("peer-attention-state", {
+      peerId: socket.id,
+      status,
+    });
+  });
+
   socket.on("disconnecting", () => {
     socket.rooms.forEach((r) => {
       if (r !== socket.id) leaveRoom(socket, r);
