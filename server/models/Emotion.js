@@ -5,7 +5,7 @@ const emotionSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: false,
+      required: true,
       index: true,
     },
     sessionId: {
@@ -50,5 +50,6 @@ const emotionSchema = new mongoose.Schema(
 
 emotionSchema.index({ sessionId: 1, updatedAt: 1 });
 emotionSchema.index({ sessionId: 1, userId: 1 });
+emotionSchema.index({ userId: 1, sessionId: 1 }, { unique: true });
 
 module.exports = mongoose.model("Emotion", emotionSchema);

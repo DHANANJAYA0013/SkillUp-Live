@@ -5,7 +5,6 @@ const Emotion = require("../models/Emotion");
 const router = express.Router();
 
 const EMOTION_KEYS = ["angry", "disgusted", "fearful", "happy", "neutral", "sad", "surprised"];
-const DUPLICATE_THROTTLE_MS = 5000; // 5 seconds - prevent duplicate spam
 
 const createEmptyCounts = () => EMOTION_KEYS.reduce((acc, key) => {
   acc[key] = 0;
@@ -30,53 +29,32 @@ router.post("/", async (req, res) => {
     const emotion = normalizeEmotion(req.body?.emotion);
     const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
     const confidence = Number.isFinite(Number(req.body?.confidence)) ? Math.min(1, Math.max(0, Number(req.body.confidence))) : 0;
-    const timestamp = Number.isFinite(Number(req.body?.timestamp)) ? new Date(Number(req.body.timestamp)) : new Date();
     const userId = typeof req.body?.userId === "string" && mongoose.Types.ObjectId.isValid(req.body.userId)
       ? req.body.userId
       : null;
 
-    if (!sessionId || !emotion) {
-      return res.status(400).json({ error: "sessionId and emotion are required" });
+    if (!sessionId || !userId || !emotion) {
+      return res.status(400).json({ error: "userId, sessionId and emotion are required" });
     }
 
-    // Build query to find existing document for this user and session
-    const query = {
-      sessionId,
-      ...(userId ? { userId } : { name }),
-    };
+    const timestamp = new Date();
 
-    // Check if we should skip duplicate emotion within throttle window
-    let skipDueToThrottle = false;
-    const existing = await Emotion.findOne(query);
-    
-    if (existing && existing.emotions.length > 0) {
-      const lastEmotion = existing.emotions[existing.emotions.length - 1];
-      const timeSinceLastEmotion = timestamp - lastEmotion.timestamp;
-      
-      // Skip if same emotion detected within throttle window
-      if (lastEmotion.emotion === emotion && timeSinceLastEmotion < DUPLICATE_THROTTLE_MS) {
-        skipDueToThrottle = true;
-      }
-    }
-
-    if (skipDueToThrottle) {
-      return res.status(200).json({ message: "Emotion throttled (duplicate within 5s)", skipped: true });
-    }
-
-    // Use findOneAndUpdate to push emotion into emotions array
     const updated = await Emotion.findOneAndUpdate(
-      query,
       {
-        $set: {
-          name: name || existing?.name || "Unknown",
-          lastEmotionAt: timestamp,
-        },
+        userId,
+        sessionId,
+      },
+      {
         $push: {
           emotions: {
             emotion,
             confidence,
             timestamp,
           },
+        },
+        $set: {
+          name: name || "Unknown",
+          lastEmotionAt: timestamp,
         },
       },
       {
