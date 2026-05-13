@@ -133,8 +133,6 @@ function Room({ userName, roomId, onLeave, onBack }) {
   const [attendanceMarked, setAttendanceMarked] = useState(false);
   const [attendanceAttemptToken, setAttendanceAttemptToken] = useState(0);
   const attendanceRequestInFlightRef = useRef(false);
-  const latestEmotionRef = useRef("neutral");
-  const smoothingRef = useRef(0);
   const latestEmotionRefWithConfidence = useRef({ emotion: "neutral", confidence: 0 });
 
   const addPeer = useCallback((id, info) => {
@@ -193,8 +191,14 @@ function Room({ userName, roomId, onLeave, onBack }) {
 
       try {
         await faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL);
+        console.log("[face-api] TinyFaceDetector loaded");
+
         await faceapi.nets.faceLandmark68TinyNet.loadFromUri(FACE_MODEL_URL);
+        console.log("Landmark model loaded");
+
         await faceapi.nets.faceExpressionNet.loadFromUri(FACE_MODEL_URL);
+        console.log("Expression model loaded");
+
         if (!cancelled) {
           faceModelsLoadedRef.current = true;
           setFaceModelReady(true);
@@ -202,7 +206,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
         }
       } catch (error) {
         if (!cancelled) {
-          console.warn("[face-api] TinyFaceDetector model load failed. Retrying in 3s:", error);
+          console.error("[face-api] TinyFaceDetector model load failed:", error);
           retryTimer = window.setTimeout(() => {
             void loadFaceDetectionModels();
           }, 3000);
@@ -447,11 +451,15 @@ function Room({ userName, roomId, onLeave, onBack }) {
     const detectEmotion = async () => {
       const videoElement = videoRef.current;
 
+      console.log("Emotion loop running");
+
       if (!videoElement || !localStreamRef.current || !faceModelsLoadedRef.current) {
+        console.log("Emotion loop waiting for video or models");
         return;
       }
 
       if (videoElement.readyState < 1) {
+        console.log("Emotion loop waiting for video readiness");
         return;
       }
 
@@ -467,83 +475,37 @@ function Room({ userName, roomId, onLeave, onBack }) {
           .withFaceLandmarks(true)
           .withFaceExpressions();
 
+        console.log("Detection result:", detection);
+
         if (!detection || !detection.expressions) {
+          console.log("No expressions detected");
+          setEmotion("");
+          setEmotionConfidence(0);
+          latestEmotionRefWithConfidence.current = { emotion: "", confidence: 0 };
           return;
         }
 
         console.log("Expressions:", detection.expressions);
 
         const expressions = detection.expressions;
-        const sortedExpressions = Object.entries(expressions).sort((a, b) => b[1] - a[1]);
+        const dominantEmotion = Object.keys(expressions).reduce((a, b) =>
+          expressions[a] > expressions[b] ? a : b
+        );
+        const confidence = expressions[dominantEmotion];
 
-        if (sortedExpressions.length === 0) {
-          setEmotion("");
-          setEmotionConfidence(0);
-          latestEmotionRefWithConfidence.current = { emotion: "", confidence: 0 };
-          return;
-        }
-
-        const [emotionName, rawConfidence] = sortedExpressions[0];
-        const confidence = Number.isFinite(Number(rawConfidence))
-          ? Math.max(0, Math.min(1, Number(rawConfidence)))
-          : 0;
-
-        console.log("Dominant emotion:", emotionName, confidence);
+        console.log("Emotion:", dominantEmotion, confidence);
 
         setEmotionExpressions(expressions);
-
-        if (confidence <= 0 || confidence < 0.55) {
-          console.log("Low confidence emotion ignored");
-          setEmotion("");
-          setEmotionConfidence(0);
-          latestEmotionRefWithConfidence.current = { emotion: "", confidence: 0 };
-          return;
-        }
-
-        let resolvedEmotion = emotionName;
-        let resolvedConfidence = confidence;
-
-        if (resolvedEmotion === "neutral" && confidence < 0.75) {
-          setEmotion("");
-          setEmotionConfidence(0);
-          latestEmotionRefWithConfidence.current = { emotion: "", confidence: 0 };
-          return;
-        }
-
-        if (latestEmotionRefWithConfidence.current.emotion === resolvedEmotion) {
-          smoothingRef.current = (smoothingRef.current || 0) + 1;
-        } else {
-          smoothingRef.current = 1;
-        }
-
-        recentEmotionsRef.current = [
-          ...recentEmotionsRef.current.slice(-2),
-          { emotion: resolvedEmotion, confidence: resolvedConfidence, time: Date.now() },
-        ];
-
-        const recentEmotionCounts = recentEmotionsRef.current.reduce((acc, entry) => {
-          acc[entry.emotion] = (acc[entry.emotion] || 0) + 1;
-          return acc;
-        }, {});
-
-        if ((recentEmotionCounts[resolvedEmotion] || 0) < 2) {
-          setEmotion("");
-          setEmotionConfidence(0);
-          latestEmotionRefWithConfidence.current = { emotion: "", confidence: 0 };
-          return;
-        }
-
-        latestEmotionRefWithConfidence.current = { emotion: resolvedEmotion, confidence: resolvedConfidence };
-        latestEmotionRef.current = resolvedEmotion;
-        setEmotion(resolvedEmotion);
-        setEmotionConfidence(resolvedConfidence);
+        setEmotion(dominantEmotion);
+        setEmotionConfidence(confidence);
+        latestEmotionRefWithConfidence.current = { emotion: dominantEmotion, confidence };
         setEmotionLog((prev) => {
-          const next = [...prev, { emotion: resolvedEmotion, confidence: resolvedConfidence, time: Date.now() }];
+          const next = [...prev, { emotion: dominantEmotion, confidence, time: Date.now() }];
           return next.slice(-120);
         });
       } catch (error) {
         if (!cancelled) {
-          console.warn("[face-api] Emotion detection error:", error.message);
+          console.error("[face-api] Emotion detection error:", error);
         }
       }
     };
@@ -581,18 +543,13 @@ function Room({ userName, roomId, onLeave, onBack }) {
     let cancelled = false;
 
     const sendEmotion = async () => {
-      const latest = latestEmotionRefWithConfidence.current || { emotion: "neutral", confidence: 0 };
+      const latest = latestEmotionRefWithConfidence.current || { emotion: "", confidence: 0 };
       const now = Date.now();
 
-      if (!latest.emotion || latest.confidence <= 0 || latest.confidence < 0.55) {
-        return;
-      }
+      console.log("Sending emotion to backend", latest);
 
-      if (latest.emotion === "neutral" && latest.confidence < 0.75) {
-        return;
-      }
-
-      if (lastSavedEmotionRef.current.emotion === latest.emotion && now - lastSavedEmotionRef.current.timestamp < 10000) {
+      if (!latest.emotion) {
+        console.log("No emotion to send");
         return;
       }
 
@@ -605,9 +562,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
         timestamp: now,
       };
 
-      if (debugMode) {
-        console.log("[emotion] Sending emotion payload:", payload);
-      }
+      console.log("[emotion] Sending emotion payload:", payload);
 
       try {
         const response = await fetch(`${API_BASE}/emotion`, {
@@ -616,19 +571,18 @@ function Room({ userName, roomId, onLeave, onBack }) {
           body: JSON.stringify(payload),
         });
 
-        if (debugMode && response.ok) {
+        console.log("[emotion] Response status:", response.status);
+
+        if (response.ok) {
           const data = await response.json().catch(() => null);
-          if (data && data.skipped) {
-            console.log("[emotion] Server skipped duplicate emotion (throttle)");
-          } else {
-            lastSavedEmotionRef.current = { emotion: latest.emotion, timestamp: now };
-          }
-        } else if (response.ok) {
-          lastSavedEmotionRef.current = { emotion: latest.emotion, timestamp: now };
+          console.log("[emotion] Response data:", data);
+        } else {
+          const errorData = await response.json().catch(() => null);
+          console.error("[emotion] Response error:", errorData);
         }
       } catch (error) {
         if (!cancelled) {
-          console.warn("[emotion] Failed to send emotion sample:", error);
+          console.error("[emotion] Failed to send emotion sample:", error);
         }
       }
     };

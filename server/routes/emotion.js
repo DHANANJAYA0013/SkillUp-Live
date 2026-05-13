@@ -25,6 +25,9 @@ const getEngagementScore = (counts, total) => {
 
 router.post("/", async (req, res) => {
   try {
+    console.log("Emotion API hit");
+    console.log(req.body);
+
     const sessionId = typeof req.body?.sessionId === "string" ? req.body.sessionId.trim() : "";
     const emotion = normalizeEmotion(req.body?.emotion);
     const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
