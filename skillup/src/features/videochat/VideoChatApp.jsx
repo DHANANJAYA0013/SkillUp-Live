@@ -125,16 +125,12 @@ function Room({ userName, roomId, onLeave, onBack }) {
   const [faceModelReady, setFaceModelReady] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
   const [emotion, setEmotion] = useState("");
-  const [emotionLog, setEmotionLog] = useState([]);
-  const [emotionAlert, setEmotionAlert] = useState("");
-  const [emotionConfidence, setEmotionConfidence] = useState(0);
-  const [emotionExpressions, setEmotionExpressions] = useState({});
   const [debugMode, setDebugMode] = useState(true);
   const [attendanceMarked, setAttendanceMarked] = useState(false);
-  const [emotionTrackingEnabled, setEmotionTrackingEnabled] = useState(false);
   const [attendanceAttemptToken, setAttendanceAttemptToken] = useState(0);
   const attendanceRequestInFlightRef = useRef(false);
-  const latestEmotionRefWithConfidence = useRef({ emotion: "neutral", confidence: 0 });
+  const noFaceStreakRef = useRef(0);
+  const continuousFaceStreakRef = useRef(0);
 
   const addPeer = useCallback((id, info) => {
     setPeers((prev) => ({
@@ -193,12 +189,6 @@ function Room({ userName, roomId, onLeave, onBack }) {
       try {
         await faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL);
         console.log("[face-api] TinyFaceDetector loaded");
-
-        await faceapi.nets.faceLandmark68TinyNet.loadFromUri(FACE_MODEL_URL);
-        console.log("Landmark model loaded");
-
-        await faceapi.nets.faceExpressionNet.loadFromUri(FACE_MODEL_URL);
-        console.log("Expression model loaded");
 
         if (!cancelled) {
           faceModelsLoadedRef.current = true;
@@ -448,147 +438,115 @@ function Room({ userName, roomId, onLeave, onBack }) {
   }, [videoOn, localStream, debugMode, attendanceMarked]);
 
   useEffect(() => {
-    if (!videoOn || !attendanceMarked) {
+    if (!attendanceMarked) {
       return;
     }
 
     let cancelled = false;
 
-    const detectEmotion = async () => {
+    const sendEngagementStatus = async (status) => {
+      const payload = {
+        userId: user?._id ?? null,
+        sessionId: roomId,
+        name: userName,
+        emotion: status,
+        confidence: 1,
+        timestamp: Date.now(),
+      };
+
+      console.log("[engagement] Sending status to backend:", payload);
+
+      try {
+        const response = await fetch(`${API_BASE}/emotion`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null);
+          console.error("[engagement] Response error:", errorData);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("[engagement] Failed to send status:", error);
+        }
+      }
+    };
+
+    const detectEngagement = async () => {
       const videoElement = videoRef.current;
 
-      console.log("Emotion loop running");
+      console.log("[engagement] Loop running");
 
-      if (!videoElement || !localStreamRef.current || !faceModelsLoadedRef.current) {
-        console.log("Emotion loop waiting for video or models");
+      if (!videoOn) {
+        console.log("[engagement] Camera off -> Inactive");
+        noFaceStreakRef.current = 0;
+        continuousFaceStreakRef.current = 0;
+        setEmotion("Inactive");
+        await sendEngagementStatus("Inactive");
         return;
       }
 
-      if (videoElement.readyState < 2) {
-        console.log("Emotion loop waiting for video readiness");
+      if (!videoElement || !localStreamRef.current || !faceModelsLoadedRef.current) {
+        console.log("[engagement] Waiting for video or model");
+        return;
+      }
+
+      if (videoElement.readyState < 2 || videoElement.videoWidth === 0 || videoElement.videoHeight === 0) {
+        console.log("[engagement] Waiting for video readiness");
         return;
       }
 
       try {
-        const detection = await faceapi
-          .detectSingleFace(
-            videoElement,
-            new faceapi.TinyFaceDetectorOptions({
-              inputSize: 320,
-              scoreThreshold: 0.5,
-            })
-          )
-          .withFaceLandmarks()
-          .withFaceExpressions();
-
-        console.log("Detection result:", detection);
-
-        if (!detection || !detection.expressions) {
-          console.log("No expressions detected");
-          // Keep displaying the last detected emotion (don't reset)
-          // setEmotion("");
-          // setEmotionConfidence(0);
-          return;
-        }
-
-        // DEBUG: Log full expressions object
-        console.log("[EMOTION-DEBUG] Full expressions object:", detection.expressions);
-
-        const expressions = detection.expressions;
-        const dominantEmotion = Object.keys(expressions).reduce((a, b) =>
-          expressions[a] > expressions[b] ? a : b
+        const detection = await faceapi.detectSingleFace(
+          videoElement,
+          new faceapi.TinyFaceDetectorOptions({
+            inputSize: 320,
+            scoreThreshold: 0.5,
+          })
         );
-        const confidence = expressions[dominantEmotion];
 
-        console.log("[EMOTION-DEBUG] Dominant emotion:", dominantEmotion, "Confidence:", confidence);
-        console.log("[EMOTION-DEBUG] All expression values:", Object.entries(expressions).map(([k, v]) => `${k}: ${(v * 100).toFixed(1)}%`).join(", "));
+        if (!detection) {
+          noFaceStreakRef.current += 1;
+          continuousFaceStreakRef.current = 0;
 
-        // RELAXED: Accept any confidence >= 0.05 for testing
-        if (confidence < 0.05) {
-          console.log("[EMOTION-DEBUG] Confidence too low (", confidence, "), skipping");
+          const status = noFaceStreakRef.current >= 2 ? "Distracted" : "Engaged";
+          console.log(`[engagement] No face detected. Status: ${status}`);
+          setEmotion(status);
+          setFaceDetected(false);
+          await sendEngagementStatus(status);
           return;
         }
 
-        setEmotionExpressions(expressions);
-        setEmotion(dominantEmotion);
-        setEmotionConfidence(confidence);
-        latestEmotionRefWithConfidence.current = { emotion: dominantEmotion, confidence };
+        noFaceStreakRef.current = 0;
+        continuousFaceStreakRef.current += 1;
 
-        const payload = {
-          userId: user?._id ?? null,
-          sessionId: roomId,
-          name: userName,
-          emotion: dominantEmotion,
-          confidence,
-          timestamp: Date.now(),
-        };
-
-        console.log("[EMOTION-DEBUG] Sending emotion to backend:", payload);
-
-        try {
-          const response = await fetch(`${API_BASE}/emotion`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-
-          console.log("[emotion] Response status:", response.status);
-
-          if (response.ok) {
-            const data = await response.json().catch(() => null);
-            console.log("[emotion] Response data:", data);
-            setEmotionLog((prev) => {
-              const next = [...prev, { emotion: dominantEmotion, confidence, time: Date.now() }];
-              return next.slice(-120);
-            });
-          } else {
-            const errorData = await response.json().catch(() => null);
-            console.error("[emotion] Response error:", errorData);
-          }
-        } catch (error) {
-          if (!cancelled) {
-            console.error("[emotion] Failed to send emotion sample:", error);
-          }
-        }
+        const status = continuousFaceStreakRef.current >= 3 ? "Focused" : "Engaged";
+        console.log(`[engagement] Face detected. Status: ${status}`);
+        setEmotion(status);
+        setFaceDetected(true);
+        await sendEngagementStatus(status);
       } catch (error) {
         if (!cancelled) {
-          console.error("[face-api] Emotion detection error:", error);
+          console.error("[engagement] Detection error:", error);
         }
       }
     };
 
-    if (!attendanceMarked || !emotionTrackingEnabled) {
-      return;
-    }
-
+    console.log("[engagement] Engagement tracking started");
     const emotionInterval = window.setInterval(() => {
-      void detectEmotion();
+      void detectEngagement();
     }, 10000);
 
-    void detectEmotion();
+    void detectEngagement();
 
     return () => {
       cancelled = true;
       window.clearInterval(emotionInterval);
+      console.log("[engagement] Engagement tracking stopped");
     };
-  }, [videoOn, localStream, debugMode, attendanceMarked, emotionTrackingEnabled, roomId, user?._id, userName]);
-
-  useEffect(() => {
-    if (emotionLog.length === 0) {
-      setEmotionAlert("");
-      return;
-    }
-
-    const now = Date.now();
-    const recent = emotionLog.filter((entry) => now - entry.time <= 10000);
-    const isConcerned = recent.length > 0 && recent.every((entry) => entry.emotion === "sad" || entry.emotion === "angry");
-
-    if (isConcerned && now - recent[0].time >= 10000) {
-      setEmotionAlert("Student seems confused or frustrated");
-    } else {
-      setEmotionAlert("");
-    }
-  }, [emotionLog]);
+  }, [videoOn, localStream, debugMode, attendanceMarked, roomId, user?._id, userName]);
 
   const handleLocalVideoReady = useCallback(() => {
     const videoEl = videoRef.current;
@@ -660,7 +618,6 @@ function Room({ userName, roomId, onLeave, onBack }) {
 
         if (!cancelled && (res.ok || alreadyMarked)) {
           setAttendanceMarked(true);
-          setEmotionTrackingEnabled(true);
           console.log("[attendance] Successfully marked attendance for user:", {
             userName,
             userId: userId ? `${userId}` : "(no userId)",
@@ -811,26 +768,6 @@ function Room({ userName, roomId, onLeave, onBack }) {
               ? `Current emotion: ${emotion ? emotion.charAt(0).toUpperCase() + emotion.slice(1) : "Detecting..."}`
               : "Current emotion: Waiting for attendance"}
           </div>
-          {emotionAlert && (
-            <div
-              style={{
-                marginTop: 8,
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-                padding: "5px 10px",
-                borderRadius: 9999,
-                border: "1px solid rgba(245, 158, 11, 0.35)",
-                background: "rgba(245, 158, 11, 0.12)",
-                color: "#b45309",
-                fontSize: 12,
-                fontWeight: 600,
-              }}
-            >
-              {emotionAlert}
-            </div>
-          )}
         </div>
         <div className="header-right">
           <button
@@ -895,9 +832,6 @@ function Room({ userName, roomId, onLeave, onBack }) {
                     videoOn={spotlightUser.videoOn}
                     audioOn={spotlightUser.audioOn}
                     emotion={spotlightUser.isLocal ? emotion : ""}
-                    emotionConfidence={spotlightUser.isLocal ? emotionConfidence : 0}
-                    emotionExpressions={spotlightUser.isLocal ? emotionExpressions : {}}
-                    debugMode={debugMode}
                     externalVideoRef={spotlightUser.isLocal ? videoRef : undefined}
                     onVideoReady={spotlightUser.isLocal ? handleLocalVideoReady : undefined}
                   />
@@ -914,9 +848,6 @@ function Room({ userName, roomId, onLeave, onBack }) {
                       videoOn={p.videoOn}
                       audioOn={p.audioOn}
                       emotion={p.isLocal ? emotion : ""}
-                      emotionConfidence={p.isLocal ? emotionConfidence : 0}
-                      emotionExpressions={p.isLocal ? emotionExpressions : {}}
-                      debugMode={debugMode}
                       externalVideoRef={p.isLocal ? videoRef : undefined}
                       onVideoReady={p.isLocal ? handleLocalVideoReady : undefined}
                     />
