@@ -12,7 +12,12 @@ import SessionAttendanceView from "@/components/SessionAttendanceView";
 import { useAuth } from "@/features/authsystem/AuthContext";
 import { API_BASE } from "@/features/authsystem/config";
 
-const EMOTION_KEYS = ["happy", "neutral", "sad", "angry", "surprised", "fearful", "disgusted"] as const;
+const ATTENTION_KEYS = [
+  { key: "engaged", label: "Engaged" },
+  { key: "focused", label: "Focused" },
+  { key: "distracted", label: "Distracted" },
+  { key: "inactive", label: "Inactive" },
+] as const;
 
 interface DbSession {
   _id: string;
@@ -28,27 +33,33 @@ interface DbSession {
   topic: string;
   roomId: string;
   status: "scheduled" | "live" | "completed";
+  createdAt?: string;
 }
 
-interface EmotionSummaryStudent {
+interface AttentionSummaryStudent {
   userId: string | null;
   userRole: string | null;
   studentName: string;
-  total: number;
+  totalSamples: number;
   counts: Record<string, number>;
   percentages: Record<string, number>;
-  engagement: number;
-  latestEmotion: string;
-  lastSeenAt: string;
+  attentionScore: number;
+  allCounts?: Record<string, number>;
+  allPercentages?: Record<string, number>;
+  lastSeenAt: string | null;
 }
 
-interface EmotionSummaryResponse {
-  sessionId: string;
-  total: number;
-  counts: Record<string, number>;
-  percentages: Record<string, number>;
-  engagement: number;
-  students: EmotionSummaryStudent[];
+interface AttentionSummaryResponse {
+  sessionId?: string;
+  summary: {
+    counts: Record<string, number>;
+    percentages: Record<string, number>;
+    totalSamples: number;
+    totalLearners: number;
+    attentionScore: number;
+    scoredSamples: number;
+  };
+  students: AttentionSummaryStudent[];
 }
 
 const parseApiResponse = async (res: Response) => {
@@ -86,9 +97,9 @@ const MentorDashboardPage = () => {
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [particlesReady, setParticlesReady] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState("");
-  const [emotionSummary, setEmotionSummary] = useState<EmotionSummaryResponse | null>(null);
-  const [emotionLoading, setEmotionLoading] = useState(false);
-  const [emotionError, setEmotionError] = useState("");
+  const [attentionSummary, setAttentionSummary] = useState<AttentionSummaryResponse | null>(null);
+  const [attentionLoading, setAttentionLoading] = useState(false);
+  const [attentionError, setAttentionError] = useState("");
 
   useEffect(() => {
     initParticlesEngine(async (engine) => {
@@ -122,7 +133,16 @@ const MentorDashboardPage = () => {
           (session) =>
             session.mentorId === authUser._id &&
             session.mentorEmail.trim().toLowerCase() === (authUser.email || "").trim().toLowerCase()
-        );
+        ).sort((a, b) => {
+          const aTime = new Date(a.scheduledAt || a.createdAt || 0).getTime();
+          const bTime = new Date(b.scheduledAt || b.createdAt || 0).getTime();
+
+          if (Number.isNaN(aTime) && Number.isNaN(bTime)) return 0;
+          if (Number.isNaN(aTime)) return 1;
+          if (Number.isNaN(bTime)) return -1;
+
+          return bTime - aTime;
+        });
 
         setSessions(mentorSessions);
         if (!selectedSessionId && mentorSessions[0]) {
@@ -139,95 +159,89 @@ const MentorDashboardPage = () => {
     return () => controller.abort();
   }, [authUser, selectedSessionId]);
 
+  const selectedSession = useMemo(
+    () => sessions.find((session) => session._id === selectedSessionId) || sessions[0] || null,
+    [selectedSessionId, sessions]
+  );
+
   useEffect(() => {
-    if (!selectedSessionId) {
-      setEmotionSummary(null);
-      setEmotionError("");
+    const roomId = selectedSession?.roomId?.trim() || "";
+
+    if (!roomId) {
+      setAttentionSummary(null);
+      setAttentionError("");
       return;
     }
 
     const controller = new AbortController();
 
     const loadSummary = async () => {
-      setEmotionLoading(true);
-      setEmotionError("");
+      setAttentionLoading(true);
+      setAttentionError("");
 
       try {
-        const currentSession = sessions.find((session) => session._id === selectedSessionId) || sessions[0] || null;
-        const sessionIdentifier = currentSession?.roomId || selectedSessionId;
-        const res = await fetch(`${API_BASE}/emotion/summary?sessionId=${encodeURIComponent(sessionIdentifier)}`, {
+        const primaryResponse = await fetch(`${API_BASE}/emotion/session-summary/${encodeURIComponent(roomId)}`, {
           signal: controller.signal,
         });
-        const data = await parseApiResponse(res);
-        if (!res.ok) {
-          const message = data && typeof data === "object" && "error" in data
-            ? String((data as { error: unknown }).error)
-            : "Failed to load emotion summary";
-          throw new Error(message);
+        const primaryData = await parseApiResponse(primaryResponse);
+
+        if (primaryResponse.ok) {
+          setAttentionSummary(primaryData as AttentionSummaryResponse);
+          return;
         }
-        setEmotionSummary(data as EmotionSummaryResponse);
+
+        const message = primaryData && typeof primaryData === "object" && "error" in primaryData
+          ? String((primaryData as { error: unknown }).error)
+          : "Failed to load attention summary";
+        throw new Error(message);
       } catch (error) {
         if (!controller.signal.aborted) {
-          setEmotionSummary(null);
-          setEmotionError(error instanceof Error ? error.message : "Failed to load emotion summary");
+          setAttentionSummary(null);
+          setAttentionError(error instanceof Error ? error.message : "Failed to load attention summary");
         }
       } finally {
         if (!controller.signal.aborted) {
-          setEmotionLoading(false);
+          setAttentionLoading(false);
         }
       }
     };
 
     void loadSummary();
-    return () => controller.abort();
-  }, [selectedSessionId, sessions]);
+    const refreshInterval = window.setInterval(() => {
+      void loadSummary();
+    }, 10000);
 
-  const selectedSession = useMemo(
-    () => sessions.find((session) => session._id === selectedSessionId) || sessions[0] || null,
-    [selectedSessionId, sessions]
-  );
+    return () => {
+      controller.abort();
+      window.clearInterval(refreshInterval);
+    };
+  }, [selectedSession?.roomId]);
 
-  const visibleEmotionSummary = useMemo(() => {
-    if (!emotionSummary) return null;
+  const visibleAttentionSummary = useMemo(() => {
+    if (!attentionSummary) return null;
 
-    const mentorId = selectedSession?.mentorId;
-    const filteredStudents = emotionSummary.students.filter((student) => student.userId && student.userId !== mentorId);
-    const counts = EMOTION_KEYS.reduce((acc, key) => {
-      acc[key] = 0;
-      return acc;
-    }, {} as Record<string, number>);
-
-    let total = 0;
-
-    filteredStudents.forEach((student) => {
-      total += student.total;
-      EMOTION_KEYS.forEach((key) => {
-        counts[key] += student.counts[key] ?? 0;
-      });
+    const filteredStudents = attentionSummary.students.filter((student) => {
+      if (!student.userRole) return true;
+      return student.userRole === "learner";
     });
 
-    const percentages = EMOTION_KEYS.reduce((acc, key) => {
-      acc[key] = total > 0 ? Number(((counts[key] / total) * 100).toFixed(1)) : 0;
-      return acc;
-    }, {} as Record<string, number>);
-
-    const engagement = total > 0 ? Number((((counts.happy + counts.neutral) / total) * 100).toFixed(1)) : 0;
-
     return {
-      ...emotionSummary,
-      total,
-      counts,
-      percentages,
-      engagement,
+      ...attentionSummary,
+      summary: {
+        ...attentionSummary.summary,
+        totalLearners: filteredStudents.length,
+      },
+      totalSamples: attentionSummary.summary.totalSamples,
+      attentionScore: attentionSummary.summary.attentionScore,
       students: filteredStudents,
     };
-  }, [emotionSummary, selectedSession?.mentorId]);
+  }, [attentionSummary]);
 
   const metrics = [
     { label: "Sessions Created", value: String(sessions.length), icon: Calendar },
     { label: "Live Now", value: String(sessions.filter((session) => session.status === "live").length), icon: Radio },
     { label: "Completed", value: String(sessions.filter((session) => session.status === "completed").length), icon: BarChart3 },
-    { label: "Students Tracked", value: String(visibleEmotionSummary?.students.length || 0), icon: Users },
+    { label: "Students Tracked", value: String(visibleAttentionSummary?.summary.totalLearners || 0), icon: Users },
   ];
 
   if (loading) {
@@ -260,7 +274,7 @@ const MentorDashboardPage = () => {
               Mentor Dashboard,<br />{authUser.name}!
             </h1>
             <p className="max-w-2xl text-sm sm:text-base text-muted-foreground">
-              Review your live sessions, track student emotion trends, and spot engagement patterns without leaving your mentor workspace.
+              Review your live sessions, track student attention patterns, and spot engagement trends without leaving your mentor workspace.
             </p>
           </section>
 
@@ -284,7 +298,7 @@ const MentorDashboardPage = () => {
             <Card className="border-border/60 bg-white/85 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
               <CardHeader className="space-y-2">
                 <CardTitle className="text-lg sm:text-xl">Your Sessions</CardTitle>
-                <CardDescription className="text-xs sm:text-sm">Pick a session to inspect its emotion breakdown.</CardDescription>
+                <CardDescription className="text-xs sm:text-sm">Pick a session to inspect its attention breakdown.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {loadingSessions ? (
@@ -317,7 +331,7 @@ const MentorDashboardPage = () => {
                   })
                 ) : (
                   <div className="rounded-2xl border border-dashed border-border/60 bg-muted/20 p-6 text-sm text-muted-foreground">
-                    No mentor sessions found yet. Create one in your profile to start collecting emotion insights.
+                    No mentor sessions found yet. Create one in your profile to start collecting attention insights.
                   </div>
                 )}
               </CardContent>
@@ -325,23 +339,23 @@ const MentorDashboardPage = () => {
 
             <Card className="border-border/60 bg-white/85 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
               <CardHeader className="space-y-2">
-                <CardTitle className="text-lg sm:text-xl">Emotion Summary</CardTitle>
+                <CardTitle className="text-lg sm:text-xl">Attention Tracking Summary</CardTitle>
                 <CardDescription className="text-xs sm:text-sm">
                   {selectedSession ? `${selectedSession.title} · Room ${selectedSession.roomId}` : "Select a session to view insights."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {emotionLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading emotion data...</p>
-                ) : emotionError ? (
-                  <p className="text-sm text-destructive">{emotionError}</p>
-                ) : visibleEmotionSummary ? (
+                {attentionLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading attention data...</p>
+                ) : attentionError ? (
+                  <p className="text-sm text-destructive">{attentionError}</p>
+                ) : visibleAttentionSummary ? (
                   <>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {EMOTION_KEYS.map((key) => (
-                        <div key={key} className="rounded-xl border border-border/60 bg-muted/20 p-3">
-                          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{key}</p>
-                          <p className="mt-1 text-lg font-bold text-foreground">{visibleEmotionSummary.percentages[key] ?? 0}%</p>
+                      {ATTENTION_KEYS.map((entry) => (
+                        <div key={entry.key} className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{entry.label}</p>
+                          <p className="mt-1 text-lg font-bold text-foreground">{visibleAttentionSummary.summary.percentages[entry.key] ?? 0}%</p>
                         </div>
                       ))}
                     </div>
@@ -349,42 +363,54 @@ const MentorDashboardPage = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
                         <p className="text-xs text-muted-foreground">Total Samples</p>
-                        <p className="text-2xl font-bold text-foreground mt-1">{visibleEmotionSummary.total}</p>
+                        <p className="text-2xl font-bold text-foreground mt-1">{visibleAttentionSummary.summary.totalSamples}</p>
                       </div>
                       <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
-                        <p className="text-xs text-muted-foreground">Engagement Score</p>
-                        <p className="text-2xl font-bold text-foreground mt-1">{visibleEmotionSummary.engagement}%</p>
+                        <p className="text-xs text-muted-foreground">Attention Score</p>
+                        <p className="text-2xl font-bold text-foreground mt-1">{visibleAttentionSummary.summary.attentionScore}%</p>
                       </div>
                     </div>
 
                     <div className="space-y-3">
                       <div className="flex items-center justify-between gap-3">
-                        <h3 className="text-sm font-semibold text-foreground">Student Breakdown</h3>
-                        <Badge className="border-0 bg-primary/10 text-primary">{visibleEmotionSummary.students.length} students</Badge>
+                        <h3 className="text-sm font-semibold text-foreground">Student Attention Breakdown</h3>
+                        <Badge className="border-0 bg-primary/10 text-primary">{visibleAttentionSummary.summary.totalLearners} students</Badge>
                       </div>
 
                       <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-                        {visibleEmotionSummary.students.length > 0 ? visibleEmotionSummary.students.map((student) => (
+                        {visibleAttentionSummary.students.length > 0 ? visibleAttentionSummary.students.map((student) => (
                           <div key={student.userId || student.studentName} className="rounded-2xl border border-border/60 bg-white/80 p-4">
                             <div className="flex items-center justify-between gap-3">
                               <div>
                                 <p className="font-semibold text-foreground">{student.studentName}</p>
                                 <p className="text-xs text-muted-foreground capitalize">Role: {student.userRole || "learner"}</p>
-                                <p className="text-xs text-muted-foreground">Latest emotion: {student.latestEmotion}</p>
                               </div>
-                              <Badge className="border-0 bg-slate-900 text-white">Engagement {student.engagement}%</Badge>
+                              <Badge className="border-0 bg-slate-900 text-white">Attention {student.attentionScore}%</Badge>
                             </div>
                             <div className="mt-3 flex flex-wrap gap-2">
-                              {EMOTION_KEYS.map((key) => (
-                                <span key={key} className="rounded-full border border-border/70 bg-muted/30 px-2.5 py-1 text-[11px] text-muted-foreground">
-                                  {key}: {student.percentages[key] ?? 0}%
+                              {ATTENTION_KEYS.map((entry) => (
+                                <span key={entry.key} className="rounded-full border border-border/70 bg-muted/30 px-2.5 py-1 text-[11px] text-muted-foreground">
+                                  {entry.label}: {student.percentages[entry.key] ?? 0}%
                                 </span>
                               ))}
+                              {student.allPercentages?.present !== undefined && (
+                                <span className="rounded-full border border-border/70 bg-emerald-100/40 px-2.5 py-1 text-[11px] text-emerald-700">
+                                  Present: {student.allPercentages.present}%
+                                </span>
+                              )}
+                              {student.allPercentages?.rejoining !== undefined && (
+                                <span className="rounded-full border border-border/70 bg-blue-100/40 px-2.5 py-1 text-[11px] text-blue-700">
+                                  Rejoining: {student.allPercentages.rejoining}%
+                                </span>
+                              )}
+                              <span className="rounded-full border border-border/70 bg-muted/30 px-2.5 py-1 text-[11px] text-muted-foreground">
+                                Samples: {student.totalSamples}
+                              </span>
                             </div>
                           </div>
                         )) : (
                           <div className="rounded-2xl border border-dashed border-border/60 bg-muted/20 p-5 text-sm text-muted-foreground">
-                            No student emotion samples recorded for this session yet.
+                            No student attention samples recorded for this session yet.
                           </div>
                         )}
                       </div>
@@ -392,7 +418,7 @@ const MentorDashboardPage = () => {
                   </>
                 ) : (
                   <div className="rounded-2xl border border-dashed border-border/60 bg-muted/20 p-5 text-sm text-muted-foreground">
-                    Choose a session to load emotion analytics.
+                    Choose a session to load attention analytics.
                   </div>
                 )}
               </CardContent>

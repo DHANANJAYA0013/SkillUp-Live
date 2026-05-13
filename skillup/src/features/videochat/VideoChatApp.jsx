@@ -131,6 +131,9 @@ function Room({ userName, roomId, onLeave, onBack }) {
   const attendanceRequestInFlightRef = useRef(false);
   const noFaceStreakRef = useRef(0);
   const continuousFaceStreakRef = useRef(0);
+  const presentStatusSentRef = useRef(false);
+  const previousVideoStateRef = useRef(videoOn);
+  const previousFaceStateRef = useRef(false);
 
   const addPeer = useCallback((id, info) => {
     setPeers((prev) => ({
@@ -483,10 +486,21 @@ function Room({ userName, roomId, onLeave, onBack }) {
         console.log("[engagement] Camera off -> Inactive");
         noFaceStreakRef.current = 0;
         continuousFaceStreakRef.current = 0;
+        previousVideoStateRef.current = false;
+        previousFaceStateRef.current = false;
         setEmotion("Inactive");
         await sendEngagementStatus("Inactive");
         return;
       }
+
+      // Detect camera OFF -> ON transition (Rejoining trigger)
+      if (!previousVideoStateRef.current && videoOn) {
+        console.log("[engagement] Camera transitioned OFF -> ON, sending Rejoining");
+        previousVideoStateRef.current = true;
+        await sendEngagementStatus("Rejoining");
+        return;
+      }
+      previousVideoStateRef.current = true;
 
       if (!videoElement || !localStreamRef.current || !faceModelsLoadedRef.current) {
         console.log("[engagement] Waiting for video or model");
@@ -515,9 +529,21 @@ function Room({ userName, roomId, onLeave, onBack }) {
           console.log(`[engagement] No face detected. Status: ${status}`);
           setEmotion(status);
           setFaceDetected(false);
+          previousFaceStateRef.current = false;
           await sendEngagementStatus(status);
           return;
         }
+
+        // Detect face missing -> detected transition (Rejoining trigger)
+        if (!previousFaceStateRef.current && noFaceStreakRef.current >= 2) {
+          console.log("[engagement] Face transitioned from missing (noFaceStreakRef >= 2) to detected, sending Rejoining");
+          previousFaceStateRef.current = true;
+          noFaceStreakRef.current = 0;
+          continuousFaceStreakRef.current = 1;
+          await sendEngagementStatus("Rejoining");
+          return;
+        }
+        previousFaceStateRef.current = true;
 
         noFaceStreakRef.current = 0;
         continuousFaceStreakRef.current += 1;
@@ -547,6 +573,46 @@ function Room({ userName, roomId, onLeave, onBack }) {
       console.log("[engagement] Engagement tracking stopped");
     };
   }, [videoOn, localStream, debugMode, attendanceMarked, roomId, user?._id, userName]);
+
+  useEffect(() => {
+    if (!attendanceMarked || presentStatusSentRef.current) {
+      return;
+    }
+
+    presentStatusSentRef.current = true;
+
+    const sendPresentStatus = async () => {
+      const payload = {
+        userId: user?._id ?? null,
+        sessionId: roomId,
+        name: userName,
+        emotion: "Present",
+        confidence: 1,
+        timestamp: Date.now(),
+      };
+
+      console.log("[engagement] Sending Present status to backend:", payload);
+
+      try {
+        const response = await fetch(`${API_BASE}/emotion`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null);
+          console.error("[engagement] Present status response error:", errorData);
+        } else {
+          console.log("[engagement] Present status sent successfully");
+        }
+      } catch (error) {
+        console.error("[engagement] Failed to send Present status:", error);
+      }
+    };
+
+    void sendPresentStatus();
+  }, [attendanceMarked, roomId, user?._id, userName]);
 
   const handleLocalVideoReady = useCallback(() => {
     const videoEl = videoRef.current;
@@ -765,8 +831,8 @@ function Room({ userName, roomId, onLeave, onBack }) {
             {!videoOn
               ? "Camera off"
               : attendanceMarked
-              ? `Current emotion: ${emotion ? emotion.charAt(0).toUpperCase() + emotion.slice(1) : "Detecting..."}`
-              : "Current emotion: Waiting for attendance"}
+              ? `Current attention: ${emotion ? emotion.charAt(0).toUpperCase() + emotion.slice(1) : "Detecting..."}`
+              : "Current attention: Waiting for attendance"}
           </div>
         </div>
         <div className="header-right">
