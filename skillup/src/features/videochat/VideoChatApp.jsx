@@ -373,6 +373,11 @@ function Room({ userName, roomId, onLeave, onBack }) {
   }, [addPeer, closeAll, closePC, handleAnswer, handleIceCandidate, handleOffer, makeOffer, removePeer, roomId, setPeerMedia, user?._id, userName]);
 
   useEffect(() => {
+    if (attendanceMarked) {
+      console.log("[face-api] Attendance already marked, stopping attendance detector.");
+      return;
+    }
+
     if (!videoOn) {
       console.log("[face-api] Video is off, stopping detection.");
       setFaceDetected(false);
@@ -439,10 +444,10 @@ function Room({ userName, roomId, onLeave, onBack }) {
       window.clearInterval(detectionInterval);
       console.log(`[face-api] Detection stopped. Total attempts: ${detectionCount}, Successful: ${successCount}`);
     };
-  }, [videoOn, localStream, debugMode]);
+  }, [videoOn, localStream, debugMode, attendanceMarked]);
 
   useEffect(() => {
-    if (!videoOn) {
+    if (!videoOn || !attendanceMarked) {
       return;
     }
 
@@ -518,7 +523,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
       cancelled = true;
       window.clearInterval(emotionInterval);
     };
-  }, [videoOn, localStream, debugMode]);
+  }, [videoOn, localStream, debugMode, attendanceMarked]);
 
   useEffect(() => {
     if (emotionLog.length === 0) {
@@ -811,7 +816,9 @@ function Room({ userName, roomId, onLeave, onBack }) {
                 : "Detecting Face..."}
           </div>
           <div className="face-status" style={{ fontSize: 12, marginTop: 6, opacity: 0.95 }}>
-            Current emotion: {emotion.charAt(0).toUpperCase() + emotion.slice(1)}
+            {attendanceMarked
+              ? `Current emotion: ${emotion ? emotion.charAt(0).toUpperCase() + emotion.slice(1) : "Detecting..."}`
+              : "Current emotion: Waiting for attendance"}
           </div>
           {emotionAlert && (
             <div
