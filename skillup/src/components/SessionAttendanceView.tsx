@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, CheckCircle2, Clock, Users } from "lucide-react";
+import { AlertCircle, CheckCircle2, Users } from "lucide-react";
 import { API_BASE } from "@/features/authsystem/config";
 
 interface Participant {
@@ -130,7 +130,6 @@ export const SessionAttendanceView: React.FC<SessionAttendanceViewProps> = ({
   const totalParticipants = attendance.faceDetectedUsers.length + attendance.faceNotDetectedUsers.length;
   const presentCount = attendance.faceDetectedUsers.length;
   const absentCount = attendance.faceNotDetectedUsers.length;
-  const waitingCount = attendance.waitingUsers.length;
 
   const formatDate = (dateStr: string) => {
     try {
@@ -161,19 +160,10 @@ export const SessionAttendanceView: React.FC<SessionAttendanceViewProps> = ({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <div className="rounded-lg bg-blue-50 p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600">Total</span>
-                <Users className="h-4 w-4 text-blue-600" />
-              </div>
-              <div className="mt-2 text-2xl font-bold text-blue-600">{totalParticipants}</div>
-              <p className="text-xs text-gray-500 mt-1">participant{totalParticipants !== 1 ? "s" : ""}</p>
-            </div>
-
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="rounded-lg bg-green-50 p-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600">Present</span>
+                <span className="text-sm font-medium text-gray-600">Face Detected</span>
                 <CheckCircle2 className="h-4 w-4 text-green-600" />
               </div>
               <div className="mt-2 text-2xl font-bold text-green-600">{presentCount}</div>
@@ -184,22 +174,13 @@ export const SessionAttendanceView: React.FC<SessionAttendanceViewProps> = ({
 
             <div className="rounded-lg bg-red-50 p-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600">Absent</span>
+                <span className="text-sm font-medium text-gray-600">Face Not Detected</span>
                 <AlertCircle className="h-4 w-4 text-red-600" />
               </div>
               <div className="mt-2 text-2xl font-bold text-red-600">{absentCount}</div>
               <p className="text-xs text-gray-500 mt-1">
                 {totalParticipants > 0 ? `${Math.round((absentCount / totalParticipants) * 100)}%` : "—"}
               </p>
-            </div>
-
-            <div className="rounded-lg bg-yellow-50 p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600">Waiting</span>
-                <Clock className="h-4 w-4 text-yellow-600" />
-              </div>
-              <div className="mt-2 text-2xl font-bold text-yellow-600">{waitingCount}</div>
-              <p className="text-xs text-gray-500 mt-1">pending detection</p>
             </div>
           </div>
         </CardContent>
@@ -282,41 +263,6 @@ export const SessionAttendanceView: React.FC<SessionAttendanceViewProps> = ({
           )}
         </CardContent>
       </Card>
-
-      {/* Waiting Users */}
-      {attendance.waitingUsers.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Waiting for Detection</span>
-              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                {waitingCount}
-              </Badge>
-            </CardTitle>
-            <CardDescription>Users currently in the room awaiting face detection</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {attendance.waitingUsers.map((user, idx) => (
-                <div
-                  key={`waiting-${user.userId || user.name}-${idx}`}
-                  className="flex items-center justify-between rounded-lg bg-yellow-50 p-3"
-                >
-                  <div>
-                    <div className="font-medium text-gray-900">{user.name}</div>
-                    {user.joinedAt && (
-                      <div className="text-xs text-gray-500">
-                        Joined: {new Date(user.joinedAt).toLocaleTimeString()}
-                      </div>
-                    )}
-                  </div>
-                  <Clock className="h-5 w-5 text-yellow-600 animate-pulse" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Attendance Records */}
       {attendance.records && attendance.records.length > 0 && (

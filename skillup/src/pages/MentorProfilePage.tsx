@@ -372,28 +372,6 @@ const MentorProfilePage = () => {
               </div>
             </div>
 
-            {/* Reviews */}
-            <div className="bg-card rounded-xl shadow-card border border-border/50 p-6">
-              <h2 className="text-lg font-semibold text-foreground mb-4">Reviews</h2>
-              <div className="space-y-4">
-                {reviews.map((review) => (
-                  <div key={review.id} className="flex gap-3 pb-4 border-b border-border/50 last:border-0">
-                    <img src={review.userAvatar} alt={review.userName} className="w-9 h-9 rounded-full object-cover" />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-foreground">{review.userName}</span>
-                        <div className="flex">
-                          {Array.from({ length: review.rating }).map((_, i) => (
-                            <Star key={i} className="w-3 h-3 fill-accent text-accent" />
-                          ))}
-                        </div>
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1">{review.comment}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
 
           {/* Sidebar */}

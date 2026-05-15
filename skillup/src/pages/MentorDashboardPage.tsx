@@ -1,6 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { BarChart3, Calendar, ChevronRight, MessageSquareMore, Radio, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { motion } from "framer-motion";
+import {
+  ArrowRight,
+  BarChart3,
+  BrainCircuit,
+  Calendar,
+  ChevronRight,
+  Layers3,
+  MessageSquareMore,
+  Radio,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  Users,
+  Zap,
+} from "lucide-react";
 import Particles, { initParticlesEngine } from "@tsparticles/react";
 import { loadSlim } from "@tsparticles/slim";
 import type { ISourceOptions } from "@tsparticles/engine";
@@ -89,6 +104,34 @@ const particlesOptions: ISourceOptions = {
   },
   detectRetina: true,
 };
+
+const dashboardCards = [
+  {
+    title: "Live session control",
+    description: "Monitor active rooms, attendance, and attention insights in one place.",
+    icon: Radio,
+    gradient: "from-rose-500/20 via-fuchsia-500/15 to-violet-500/20",
+  },
+  {
+    title: "Learner engagement",
+    description: "See how students interact with face detection and attention tracking.",
+    icon: BrainCircuit,
+    gradient: "from-indigo-500/20 via-sky-500/15 to-cyan-500/20",
+  },
+  {
+    title: "Attendance breakdown",
+    description: "Open a session to review detected and not detected participants.",
+    icon: Target,
+    gradient: "from-emerald-500/20 via-teal-500/15 to-cyan-500/20",
+  },
+];
+
+const backdropStyles = `
+  @keyframes floatSoft {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    50% { transform: translate3d(0, -18px, 0) scale(1.04); }
+  }
+`;
 
 const MentorDashboardPage = () => {
   const { user: authUser, loading } = useAuth();
@@ -249,7 +292,8 @@ const MentorDashboardPage = () => {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.12),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.12),_transparent_28%),linear-gradient(135deg,_#f7faff_0%,_#eef4ff_46%,_#fcfdff_100%)]">
+    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.14),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.12),_transparent_28%),linear-gradient(135deg,_#f7faff_0%,_#eef4ff_46%,_#fcfdff_100%)]">
+      <style>{backdropStyles}</style>
       <div className="absolute inset-0 pointer-events-none opacity-70" aria-hidden="true">
         {particlesReady && <Particles id="mentor-dashboard-particles" className="h-full w-full" options={particlesOptions} />}
       </div>
@@ -257,46 +301,105 @@ const MentorDashboardPage = () => {
       <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
         <div className="absolute -left-24 top-12 h-72 w-72 rounded-full bg-sky-300/20 blur-3xl" />
         <div className="absolute -right-20 bottom-8 h-80 w-80 rounded-full bg-indigo-300/20 blur-3xl" />
+        <div className="absolute left-1/3 top-1/3 h-40 w-40 rounded-full bg-fuchsia-300/15 blur-3xl" style={{ animation: "floatSoft 9s ease-in-out infinite" }} />
       </div>
 
       <div className="relative z-10">
         <Navbar />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6 sm:space-y-8">
-          <section className="space-y-3">
-            <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200/60 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-indigo-700 backdrop-blur">
-              <Sparkles className="h-3.5 w-3.5" /> Mentor analytics
-            </div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground">
-              Mentor Dashboard,<br />{authUser.name}!
-            </h1>
-            <p className="max-w-2xl text-sm sm:text-base text-muted-foreground">
-              Review your live sessions, track student attention patterns, and spot engagement trends without leaving your mentor workspace.
-            </p>
-          </section>
+        <main className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:space-y-8 sm:px-6 sm:py-10 lg:px-8">
+          <motion.section
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="relative overflow-hidden rounded-[2rem] border border-white/60 bg-white/45 p-6 shadow-[0_30px_80px_rgba(91,80,171,0.14)] backdrop-blur-2xl sm:p-8"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-white/80 via-white/25 to-indigo-100/30" aria-hidden="true" />
+            <div className="absolute -right-10 top-0 h-40 w-40 rounded-full bg-fuchsia-400/20 blur-3xl" aria-hidden="true" />
+            <div className="absolute bottom-0 left-1/2 h-44 w-44 -translate-x-1/2 rounded-full bg-sky-400/20 blur-3xl" aria-hidden="true" />
 
-          <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            {metrics.map((metric) => (
-              <Card key={metric.label} className="border-border/60 bg-white/80 backdrop-blur-xl shadow-sm">
-                <CardContent className="p-3 sm:p-5 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xs sm:text-sm text-muted-foreground truncate">{metric.label}</p>
-                    <p className="text-xl sm:text-2xl font-bold text-foreground mt-1">{metric.value}</p>
-                  </div>
-                  <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary flex-shrink-0">
-                    <metric.icon className="h-5 w-5" />
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="relative z-10 grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+              <div className="flex h-full flex-col justify-center">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-indigo-700 shadow-sm backdrop-blur-md">
+                  <Sparkles className="h-3.5 w-3.5" /> Mentor workspace
+                </div>
+                <h1 className="mt-4 text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+                  Mentor Dashboard,<br />{authUser.name}!
+                </h1>
+                <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
+                  Track live sessions, review attendance intelligence, and spot learner engagement patterns in a polished teaching workspace.
+                </p>
+
+                <div className="mt-6 flex flex-wrap gap-3">
+                  {["Live rooms", "Attendance insights", "Student attention", "Session archive"].map((item) => (
+                    <div key={item} className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/65 px-4 py-2 text-sm text-slate-700 shadow-sm backdrop-blur-md">
+                      <ShieldCheck className="h-4 w-4 text-indigo-600" />
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                {dashboardCards.map((card, index) => {
+                  const CardIcon = card.icon;
+                  return (
+                    <motion.div
+                      key={card.title}
+                      initial={{ opacity: 0, y: 14 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.35, delay: 0.05 * index }}
+                      whileHover={{ y: -4, scale: 1.01 }}
+                      className={`group relative overflow-hidden rounded-[1.75rem] border border-white/70 bg-white/65 p-4 shadow-lg shadow-indigo-500/10 backdrop-blur-xl`}
+                    >
+                      <div className={`absolute inset-0 bg-gradient-to-br ${card.gradient} opacity-70`} aria-hidden="true" />
+                      <div className="absolute inset-0 bg-white/40 opacity-0 transition-opacity duration-300 group-hover:opacity-100" aria-hidden="true" />
+                      <div className="relative z-10 flex items-start gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/75 shadow-sm ring-1 ring-white/80 backdrop-blur-md">
+                          <CardIcon className="h-5 w-5 text-indigo-700" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{card.title}</p>
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">{card.description}</p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+          </motion.section>
+
+          <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            {metrics.map((metric, index) => (
+              <motion.div
+                key={metric.label}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, delay: 0.04 * index }}
+                whileHover={{ y: -4 }}
+              >
+                <Card className="border-white/70 bg-white/70 shadow-[0_18px_40px_rgba(91,80,171,0.08)] backdrop-blur-xl transition-all duration-300 hover:border-indigo-300/50 hover:bg-white/80">
+                  <CardContent className="flex items-center justify-between gap-3 p-3 sm:p-5">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs text-muted-foreground sm:text-sm">{metric.label}</p>
+                      <p className="mt-1 text-xl font-bold text-foreground sm:text-2xl">{metric.value}</p>
+                    </div>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 to-violet-500/15 text-primary shadow-sm">
+                      <metric.icon className="h-5 w-5" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
             ))}
           </section>
 
-          <section className="grid lg:grid-cols-[1.1fr_0.9fr] gap-4 sm:gap-6">
-            <Card className="border-border/60 bg-white/85 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
-              <CardHeader className="space-y-2">
+          <section className="grid gap-4 lg:grid-cols-[1.08fr_0.92fr] sm:gap-6">
+            <Card className="overflow-hidden border-white/70 bg-white/80 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
+              <CardHeader className="space-y-2 border-b border-white/60 bg-gradient-to-r from-white/80 to-indigo-50/40">
                 <CardTitle className="text-lg sm:text-xl">Your Sessions</CardTitle>
-                <CardDescription className="text-xs sm:text-sm">Pick a session to inspect its attention breakdown.</CardDescription>
+                <CardDescription className="text-xs sm:text-sm">Choose a session to open its attendance and attention insights.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-3 p-4 sm:p-6">
                 {loadingSessions ? (
                   <p className="text-sm text-muted-foreground">Loading your sessions...</p>
                 ) : sessions.length > 0 ? (
@@ -307,49 +410,49 @@ const MentorDashboardPage = () => {
                         key={session._id}
                         type="button"
                         onClick={() => setSelectedSessionId(session._id)}
-                        className={`w-full rounded-2xl border p-4 text-left transition-all ${isSelected ? "border-primary bg-primary/5 shadow-sm" : "border-border/60 bg-muted/20 hover:bg-muted/30"}`}
+                        className={`w-full rounded-2xl border p-4 text-left transition-all duration-300 ${isSelected ? "border-indigo-300 bg-gradient-to-r from-indigo-50 via-white to-violet-50 shadow-[0_14px_32px_rgba(91,80,171,0.12)]" : "border-border/60 bg-white/60 hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-white/80"}`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="font-semibold text-foreground truncate">{session.title}</p>
                             <p className="text-xs sm:text-sm text-muted-foreground truncate">{session.topic} · Room {session.roomId}</p>
                           </div>
-                          <Badge className="shrink-0 border-0 bg-white/80 text-foreground capitalize">
+                          <Badge className="shrink-0 border-0 bg-white/80 text-foreground capitalize shadow-sm backdrop-blur-md">
                             {session.status}
                           </Badge>
                         </div>
                         <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                           <span>{new Date(session.scheduledAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</span>
-                          <span className="inline-flex items-center gap-1 text-primary font-medium">View <ChevronRight className="h-3.5 w-3.5" /></span>
+                          <span className="inline-flex items-center gap-1 font-medium text-indigo-700">View <ChevronRight className="h-3.5 w-3.5" /></span>
                         </div>
                       </button>
                     );
                   })
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-border/60 bg-muted/20 p-6 text-sm text-muted-foreground">
+                  <div className="rounded-2xl border border-dashed border-white/70 bg-white/55 p-6 text-sm text-muted-foreground backdrop-blur-md">
                     No mentor sessions found yet. Create one in your profile to start collecting attention insights.
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="border-border/60 bg-white/85 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
-              <CardHeader className="space-y-2">
+            <Card className="overflow-hidden border-white/70 bg-white/80 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
+              <CardHeader className="space-y-2 border-b border-white/60 bg-gradient-to-r from-white/80 to-indigo-50/40">
                 <CardTitle className="text-lg sm:text-xl">Attention Tracking Summary</CardTitle>
                 <CardDescription className="text-xs sm:text-sm">
                   {selectedSession ? `${selectedSession.title} · Room ${selectedSession.roomId}` : "Select a session to view insights."}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 p-4 sm:p-6">
                 {attentionLoading ? (
                   <p className="text-sm text-muted-foreground">Loading attention data...</p>
                 ) : attentionError ? (
                   <p className="text-sm text-destructive">{attentionError}</p>
                 ) : visibleAttentionSummary ? (
                   <>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       {ATTENTION_KEYS.map((entry) => (
-                        <div key={entry.key} className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                        <div key={entry.key} className="rounded-xl border border-white/70 bg-white/65 p-3 shadow-sm backdrop-blur-md">
                           <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{entry.label}</p>
                           <p className="mt-1 text-lg font-bold text-foreground">{visibleAttentionSummary.summary.percentages[entry.key] ?? 0}%</p>
                         </div>
@@ -357,11 +460,11 @@ const MentorDashboardPage = () => {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
+                      <div className="rounded-xl border border-white/70 bg-white/65 p-4 shadow-sm backdrop-blur-md">
                         <p className="text-xs text-muted-foreground">Total Samples</p>
                         <p className="text-2xl font-bold text-foreground mt-1">{visibleAttentionSummary.summary.totalSamples}</p>
                       </div>
-                      <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
+                      <div className="rounded-xl border border-white/70 bg-white/65 p-4 shadow-sm backdrop-blur-md">
                         <p className="text-xs text-muted-foreground">Attention Score</p>
                         <p className="text-2xl font-bold text-foreground mt-1">{visibleAttentionSummary.summary.attentionScore}%</p>
                       </div>
@@ -370,42 +473,42 @@ const MentorDashboardPage = () => {
                     <div className="space-y-3">
                       <div className="flex items-center justify-between gap-3">
                         <h3 className="text-sm font-semibold text-foreground">Student Attention Breakdown</h3>
-                        <Badge className="border-0 bg-primary/10 text-primary">{visibleAttentionSummary.summary.totalLearners} students</Badge>
+                        <Badge className="border-0 bg-indigo-600/10 text-indigo-700 shadow-sm">{visibleAttentionSummary.summary.totalLearners} students</Badge>
                       </div>
 
                       <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
                         {visibleAttentionSummary.students.length > 0 ? visibleAttentionSummary.students.map((student) => (
-                          <div key={student.userId || student.studentName} className="rounded-2xl border border-border/60 bg-white/80 p-4">
+                          <div key={student.userId || student.studentName} className="rounded-2xl border border-white/70 bg-white/75 p-4 shadow-sm backdrop-blur-md">
                             <div className="flex items-center justify-between gap-3">
                               <div>
                                 <p className="font-semibold text-foreground">{student.studentName}</p>
                                 <p className="text-xs text-muted-foreground capitalize">Role: {student.userRole || "learner"}</p>
                               </div>
-                              <Badge className="border-0 bg-slate-900 text-white">Attention {student.attentionScore}%</Badge>
+                              <Badge className="border-0 bg-slate-900 text-white shadow-sm">Attention {student.attentionScore}%</Badge>
                             </div>
                             <div className="mt-3 flex flex-wrap gap-2">
                               {ATTENTION_KEYS.map((entry) => (
-                                <span key={entry.key} className="rounded-full border border-border/70 bg-muted/30 px-2.5 py-1 text-[11px] text-muted-foreground">
+                                <span key={entry.key} className="rounded-full border border-white/70 bg-white/70 px-2.5 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur-md">
                                   {entry.label}: {student.percentages[entry.key] ?? 0}%
                                 </span>
                               ))}
                               {student.allPercentages?.present !== undefined && (
-                                <span className="rounded-full border border-border/70 bg-emerald-100/40 px-2.5 py-1 text-[11px] text-emerald-700">
+                                <span className="rounded-full border border-emerald-200/70 bg-emerald-100/50 px-2.5 py-1 text-[11px] text-emerald-700 shadow-sm">
                                   Present: {student.allPercentages.present}%
                                 </span>
                               )}
                               {student.allPercentages?.rejoining !== undefined && (
-                                <span className="rounded-full border border-border/70 bg-blue-100/40 px-2.5 py-1 text-[11px] text-blue-700">
+                                <span className="rounded-full border border-blue-200/70 bg-blue-100/50 px-2.5 py-1 text-[11px] text-blue-700 shadow-sm">
                                   Rejoining: {student.allPercentages.rejoining}%
                                 </span>
                               )}
-                              <span className="rounded-full border border-border/70 bg-muted/30 px-2.5 py-1 text-[11px] text-muted-foreground">
+                              <span className="rounded-full border border-white/70 bg-white/70 px-2.5 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur-md">
                                 Samples: {student.totalSamples}
                               </span>
                             </div>
                           </div>
                         )) : (
-                          <div className="rounded-2xl border border-dashed border-border/60 bg-muted/20 p-5 text-sm text-muted-foreground">
+                          <div className="rounded-2xl border border-dashed border-white/70 bg-white/55 p-5 text-sm text-muted-foreground backdrop-blur-md">
                             No student attention samples recorded for this session yet.
                           </div>
                         )}
@@ -413,7 +516,7 @@ const MentorDashboardPage = () => {
                     </div>
                   </>
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-border/60 bg-muted/20 p-5 text-sm text-muted-foreground">
+                  <div className="rounded-2xl border border-dashed border-white/70 bg-white/55 p-5 text-sm text-muted-foreground backdrop-blur-md">
                     Choose a session to load attention analytics.
                   </div>
                 )}
@@ -423,50 +526,56 @@ const MentorDashboardPage = () => {
 
           {selectedSession && (
             <section>
-              <Card className="border-border/60 bg-white/85 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
-                <CardHeader className="space-y-2">
+              <Card className="overflow-hidden border-white/70 bg-white/80 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
+                <CardHeader className="space-y-2 border-b border-white/60 bg-gradient-to-r from-white/80 to-indigo-50/40">
                   <CardTitle className="text-lg sm:text-xl">Attendance Breakdown</CardTitle>
                   <CardDescription className="text-xs sm:text-sm">
                     Face detected and face not detected users for {selectedSession.title} · Room {selectedSession.roomId}
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 sm:p-6">
                   <SessionAttendanceView sessionId={selectedSession._id} mentorId={selectedSession.mentorId} />
                 </CardContent>
               </Card>
             </section>
           )}
 
-          <section className="grid md:grid-cols-3 gap-4">
-            <Card className="border-border/60 bg-white/80 backdrop-blur-xl">
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Need to review participants?</p>
-                <p className="mt-1 text-sm font-medium text-foreground">Use your room link to jump into the live session and observe in real time.</p>
-                <Button asChild className="mt-4 w-full">
+          <section className="grid gap-4 md:grid-cols-3">
+            <Card className="border-white/70 bg-white/75 backdrop-blur-xl shadow-[0_18px_40px_rgba(91,80,171,0.08)]">
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-indigo-700">
+                  <Layers3 className="h-3.5 w-3.5" /> Session room
+                </div>
+                <p className="mt-2 text-sm font-medium text-foreground">Jump into the current live room and observe in real time.</p>
+                <Button asChild className="mt-4 w-full gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
                   <Link to={selectedSession ? `/room/${selectedSession.roomId}?name=${encodeURIComponent(authUser.name)}` : "/sessions"}>
-                    Open Live Room
+                    Open Live Room <ArrowRight className="h-4 w-4" />
                   </Link>
                 </Button>
               </CardContent>
             </Card>
 
-            <Card className="border-border/60 bg-white/80 backdrop-blur-xl">
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Need learner follow-up?</p>
-                <p className="mt-1 text-sm font-medium text-foreground">See your live teaching context and participant conversations in the sessions area.</p>
-                <Button asChild variant="outline" className="mt-4 w-full">
+            <Card className="border-white/70 bg-white/75 backdrop-blur-xl shadow-[0_18px_40px_rgba(91,80,171,0.08)]">
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-indigo-700">
+                  <MessageSquareMore className="h-3.5 w-3.5" /> Session hub
+                </div>
+                <p className="mt-2 text-sm font-medium text-foreground">Review live teaching context and participant activity in the sessions area.</p>
+                <Button asChild variant="outline" className="mt-4 w-full rounded-2xl border-white/70 bg-white/75 backdrop-blur-md">
                   <Link to="/sessions">
-                    Session Management
+                    Open Sessions
                   </Link>
                 </Button>
               </CardContent>
             </Card>
 
-            <Card className="border-border/60 bg-white/80 backdrop-blur-xl">
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Mentor profile</p>
-                <p className="mt-1 text-sm font-medium text-foreground">Keep your skills and bio up to date so learners can find you.</p>
-                <Button asChild variant="outline" className="mt-4 w-full">
+            <Card className="border-white/70 bg-white/75 backdrop-blur-xl shadow-[0_18px_40px_rgba(91,80,171,0.08)]">
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-indigo-700">
+                  <Zap className="h-3.5 w-3.5" /> Mentor profile
+                </div>
+                <p className="mt-2 text-sm font-medium text-foreground">Keep your profile current so learners can discover you faster.</p>
+                <Button asChild variant="outline" className="mt-4 w-full rounded-2xl border-white/70 bg-white/75 backdrop-blur-md">
                   <Link to="/profile">
                     Update Profile
                   </Link>
