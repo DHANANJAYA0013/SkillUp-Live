@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { appSocket } from "@/lib/socket";
 
 const apiBase = import.meta.env.VITE_API_BASE || "";
 
@@ -63,6 +64,32 @@ const NotificationsPage = () => {
     void fetchNotifications();
   }, [fetchNotifications]);
 
+  useEffect(() => {
+    if (!user?._id) return;
+
+    appSocket.emit("register-user", user._id);
+    const onConnect = () => {
+      appSocket.emit("register-user", user._id);
+    };
+
+    const onNotification = (notification) => {
+      console.log("notification received:", notification);
+      setNotifications((prev) => {
+        const exists = prev.some((n) => String(n._id) === String(notification?._id));
+        if (exists) return prev;
+        return [notification, ...prev];
+      });
+    };
+
+    appSocket.on("connect", onConnect);
+    appSocket.on("new_notification", onNotification);
+
+    return () => {
+      appSocket.off("connect", onConnect);
+      appSocket.off("new_notification", onNotification);
+    };
+  }, [user?._id]);
+
   const unreadCount = useMemo(() => notifications.reduce((acc, n) => acc + (n.isRead ? 0 : 1), 0), [notifications]);
 
   const markRead = useCallback(async (id) => {
@@ -91,11 +118,17 @@ const NotificationsPage = () => {
       });
       if (res.ok) {
         setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+        window.dispatchEvent(new CustomEvent("notifications-unread-reset", { detail: { count: 0 } }));
       }
     } catch (e) {
       // ignore
     }
   }, [user?._id]);
+
+  useEffect(() => {
+    // Opening notifications page should mark all as read and reset navbar badge
+    void markAllRead();
+  }, [markAllRead]);
 
   const openNotification = useCallback(async (note) => {
     // mark read then navigate to session room if possible

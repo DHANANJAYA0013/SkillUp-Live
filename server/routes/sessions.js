@@ -122,13 +122,14 @@ router.post("/", verifyToken, requireRole("mentor"), async (req, res) => {
       const followers = Array.isArray(mentor?.followers) ? mentor.followers : [];
 
       if (followers.length > 0) {
+        const io = req.app.get("io");
         const senderName = mentor?.name || req.user.name || "";
         const sessionId = session._id;
         const sessionTitle = session.title || "";
         const message = `${senderName} scheduled a new session: ${sessionTitle}`;
 
-        const createPromises = followers.map((followerId) =>
-          Notification.create({
+        const createPromises = followers.map(async (followerId) => {
+          const savedNotification = await Notification.create({
             recipientId: followerId,
             senderId: req.user._id,
             senderName,
@@ -137,8 +138,14 @@ router.post("/", verifyToken, requireRole("mentor"), async (req, res) => {
             sessionTitle,
             message,
             isRead: false,
-          })
-        );
+          });
+
+          if (io) {
+            io.to(String(followerId)).emit("new_notification", savedNotification);
+          }
+
+          return savedNotification;
+        });
 
         await Promise.all(createPromises);
       }

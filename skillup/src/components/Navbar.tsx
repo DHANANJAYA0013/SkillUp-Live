@@ -4,6 +4,7 @@ import { Menu, X, BookOpen, Bell } from "lucide-react";
 import { useAuth } from "@/features/authsystem/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { appSocket } from "@/lib/socket";
 
 const navLinks = [
   { label: "Find Mentors", path: "/mentors" },
@@ -19,6 +20,11 @@ const Navbar = () => {
   const { user } = useAuth();
   const [unread, setUnread] = useState(0);
 
+  const broadcastUnread = useCallback((count) => {
+    console.log("badge count:", count);
+    window.dispatchEvent(new CustomEvent("notifications-unread-updated", { detail: { count } }));
+  }, []);
+
   const fetchUnread = useCallback(async (signal) => {
     try {
       if (!user?._id) {
@@ -31,10 +37,11 @@ const Navbar = () => {
       const notes = Array.isArray(body.notifications) ? body.notifications : (body.notifications || []);
       const count = notes.reduce((acc, n) => acc + (n.isRead ? 0 : 1), 0);
       setUnread(count);
+      broadcastUnread(count);
     } catch (e) {
       // ignore fetch abort or errors
     }
-  }, [user?._id]);
+  }, [broadcastUnread, user?._id]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -45,6 +52,41 @@ const Navbar = () => {
       clearInterval(interval);
     };
   }, [fetchUnread]);
+
+  useEffect(() => {
+    if (!user?._id) return;
+
+    appSocket.emit("register-user", user._id);
+    const onConnect = () => {
+      appSocket.emit("register-user", user._id);
+    };
+
+    const onNotification = (notification) => {
+      console.log("notification received:", notification);
+      setUnread((prev) => {
+        const next = prev + 1;
+        broadcastUnread(next);
+        return next;
+      });
+    };
+
+    const onUnreadReset = (event) => {
+      const count = Number(event?.detail?.count);
+      const normalized = Number.isFinite(count) ? Math.max(0, count) : 0;
+      setUnread(normalized);
+      broadcastUnread(normalized);
+    };
+
+    appSocket.on("connect", onConnect);
+    appSocket.on("new_notification", onNotification);
+    window.addEventListener("notifications-unread-reset", onUnreadReset);
+
+    return () => {
+      appSocket.off("connect", onConnect);
+      appSocket.off("new_notification", onNotification);
+      window.removeEventListener("notifications-unread-reset", onUnreadReset);
+    };
+  }, [broadcastUnread, user?._id]);
 
   const handleBrandClick = () => {
     setMobileOpen(false);

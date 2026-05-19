@@ -79,6 +79,8 @@ const io = new Server(server, {
   pingInterval: 25000,
 });
 
+app.set("io", io);
+
 // roomId -> { users: Map<socketId, { socketId, name }> }
 const rooms = new Map();
 
@@ -133,6 +135,13 @@ app.use("/api", (_req, res) => {
 
 io.on("connection", (socket) => {
   console.log(`[connect] ${socket.id}`);
+
+  socket.on("register-user", (userId) => {
+    const normalizedUserId = typeof userId === "string" ? userId.trim() : "";
+    if (!normalizedUserId) return;
+    socket.join(normalizedUserId);
+    console.log("user joined notification room:", normalizedUserId);
+  });
 
   socket.on("join-room", ({ roomId, userName }) => {
     if (!roomId) return;
