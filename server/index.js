@@ -139,7 +139,7 @@ io.on("connection", (socket) => {
       if (r !== socket.id) leaveRoom(socket, r);
     });
 
-    const normalizedName = (userName || `Guest-${socket.id.slice(0, 5)}`).toString();
+    const normalizedName = typeof userName === "string" ? userName.trim() : "";
     const room = getOrCreateRoom(roomId);
     const userInfo = { socketId: socket.id, name: normalizedName };
 

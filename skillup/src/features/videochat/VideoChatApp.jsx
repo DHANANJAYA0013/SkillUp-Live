@@ -992,13 +992,13 @@ export default function VideoChatApp({ presetRoomId = "" }) {
   const [session, setSession] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const { user: authUser, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    if (!presetRoomId || session) return;
-    const params = new URLSearchParams(location.search);
-    const defaultName = params.get("name") || "Guest";
+    if (!presetRoomId || session || authLoading) return;
+    const defaultName = authUser?.name || location?.state?.userName || "";
     setSession({ name: defaultName, room: presetRoomId });
-  }, [presetRoomId, session, location.search]);
+  }, [presetRoomId, session, authLoading, authUser, location?.state?.userName]);
 
   const handleBack = useCallback(() => {
     if (window.history.length > 1) {

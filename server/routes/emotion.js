@@ -4,6 +4,7 @@ const Emotion = require("../models/Emotion");
 const Session = require("../models/Session");
 
 const router = express.Router();
+const User = require("../models/User");
 
 const ATTENTION_KEYS = ["engaged", "focused", "distracted", "inactive"];
 const ALL_ATTENTION_STATUSES = ["engaged", "focused", "distracted", "inactive", "present", "rejoining"];
@@ -25,6 +26,7 @@ const createEmptyAllAttentionCounts = () => ALL_ATTENTION_STATUSES.reduce((acc, 
 }, {});
 
 const normalizeAttentionStatus = (value) => (typeof value === "string" ? value.trim().toLowerCase() : "");
+const normalizeName = (value) => (typeof value === "string" ? value.trim() : "");
 
 const buildAttentionPercentages = (counts, total) => ATTENTION_KEYS.reduce((acc, key) => {
   acc[key] = total > 0 ? Number(((counts[key] / total) * 100).toFixed(1)) : 0;
@@ -193,7 +195,6 @@ router.post("/", async (req, res) => {
 
     const sessionId = typeof req.body?.sessionId === "string" ? req.body.sessionId.trim() : "";
     const attentionStatus = normalizeAttentionStatus(req.body?.emotion);
-    const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
     const confidence = Number.isFinite(Number(req.body?.confidence)) ? Math.min(1, Math.max(0, Number(req.body.confidence))) : 0;
     const userId = typeof req.body?.userId === "string" && mongoose.Types.ObjectId.isValid(req.body.userId)
       ? req.body.userId
@@ -201,6 +202,13 @@ router.post("/", async (req, res) => {
 
     if (!sessionId || !userId || !attentionStatus) {
       return res.status(400).json({ error: "userId, sessionId and emotion are required" });
+    }
+
+    const user = await User.findById(userId).select("name").lean();
+    const name = normalizeName(user?.name);
+
+    if (!name) {
+      return res.status(400).json({ error: "Unable to resolve user name from users collection" });
     }
 
     const timestamp = Number.isFinite(Number(req.body?.timestamp)) ? new Date(Number(req.body.timestamp)) : new Date();
@@ -234,7 +242,7 @@ router.post("/", async (req, res) => {
           },
         },
         $set: {
-          name: name || "Unknown",
+          name,
           lastEmotionAt: timestamp,
         },
       },

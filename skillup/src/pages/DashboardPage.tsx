@@ -326,7 +326,7 @@ const DashboardPage = () => {
       <div className="relative min-h-screen overflow-hidden">
         <DashboardBackdrop />
         <div className="absolute inset-0 pointer-events-none opacity-70" aria-hidden="true">
-          {particlesReady && <Particles id="dashboard-particles-guest" className="h-full w-full" options={particlesOptions} />}
+          {particlesReady && <Particles id="dashboard-particles" className="h-full w-full" options={particlesOptions} />}
         </div>
         <div className="relative z-10">
           <Navbar />

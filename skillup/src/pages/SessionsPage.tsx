@@ -573,7 +573,9 @@ const SessionsPage = () => {
               className="w-full gap-2 rounded-2xl border-0 bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white shadow-lg shadow-indigo-500/20 transition-transform duration-300 hover:scale-[1.01] hover:opacity-95"
               onClick={() =>
                 navigate(
-                  `/start-live?message=Joining%20live%20session&next=${encodeURIComponent(`/room/${session.roomId}?name=Guest`)}`,
+                    `/start-live?message=Joining%20live%20session&next=${encodeURIComponent(
+                      `/room/${session.roomId}?name=${encodeURIComponent(authUser?.name || "")}`
+                    )}`,
                   { replace: true }
                 )
               }

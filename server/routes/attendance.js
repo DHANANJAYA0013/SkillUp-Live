@@ -9,6 +9,18 @@ const getTodayDateString = () => new Date().toISOString().split("T")[0];
 const normalizeName = (name) => (typeof name === "string" ? name.trim() : "");
 const hasValidObjectId = (value) => typeof value === "string" && mongoose.Types.ObjectId.isValid(value);
 
+const resolveUserName = async ({ userId, fallbackName }) => {
+  if (hasValidObjectId(userId)) {
+    const user = await User.findById(userId).select("name").lean();
+    const resolvedName = normalizeName(user?.name);
+    if (resolvedName) {
+      return resolvedName;
+    }
+  }
+
+  return normalizeName(fallbackName);
+};
+
 const participantMatches = (participant, userId, normalizedName) => {
   if (hasValidObjectId(userId) && participant.userId) {
     return participant.userId.toString() === userId;
@@ -137,7 +149,7 @@ router.post("/join", async (req, res) => {
   try {
     const { sessionId, sessionIdentifier, roomId, mentorId, userId, name } = req.body;
     const requestedSessionIdentifier = sessionIdentifier || sessionId || roomId;
-    const normalizedName = normalizeName(name);
+    const normalizedName = await resolveUserName({ userId, fallbackName: name });
 
     if (!requestedSessionIdentifier || !normalizedName) {
       return res.status(400).json({
@@ -218,7 +230,7 @@ router.post("/mark", async (req, res) => {
   try {
     const { sessionId, sessionIdentifier, roomId, mentorId, userId, name } = req.body;
     const requestedSessionIdentifier = sessionIdentifier || sessionId || roomId;
-    const normalizedName = normalizeName(name);
+    const normalizedName = await resolveUserName({ userId, fallbackName: name });
     const hasValidUserId = hasValidObjectId(userId);
 
     if (!requestedSessionIdentifier || !normalizedName) {
