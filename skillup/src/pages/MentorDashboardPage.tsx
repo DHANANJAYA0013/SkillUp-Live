@@ -77,6 +77,19 @@ interface AttentionSummaryResponse {
   students: AttentionSummaryStudent[];
 }
 
+interface EmotionSample {
+  emotion?: string;
+  status?: string;
+  timestamp?: string | number | Date;
+}
+
+interface EmotionDoc {
+  name?: string;
+  userId?: string | { _id?: string } | null;
+  sessionId?: string;
+  emotions?: EmotionSample[];
+}
+
 const parseApiResponse = async (res: Response) => {
   const raw = await res.text();
   try {
@@ -84,6 +97,168 @@ const parseApiResponse = async (res: Response) => {
   } catch {
     return raw;
   }
+};
+
+const ATTENTION_SCORE_WEIGHTS: Record<string, number> = {
+  engaged: 1,
+  focused: 1,
+  present: 0.8,
+  rejoining: 0.7,
+  distracted: 0.4,
+  inactive: 0,
+};
+
+const normalizeAttentionKey = (value: unknown) => (typeof value === "string" ? value.trim().toLowerCase() : "");
+
+const calculateAttentionSummaryFromDocs = (emotionDocs: EmotionDoc[]): AttentionSummaryResponse => {
+  const counts: Record<string, number> = {
+    engaged: 0,
+    focused: 0,
+    distracted: 0,
+    inactive: 0,
+    present: 0,
+    rejoining: 0,
+  };
+
+  const studentsByUserId = new Map<string, AttentionSummaryStudent>();
+
+  emotionDocs.forEach((doc) => {
+    const userId = typeof doc.userId === "string" ? doc.userId : doc.userId?._id || null;
+    const studentKey = userId || doc.name || doc.sessionId || "unknown";
+    const studentName = doc.name || "Unknown student";
+
+    if (!studentsByUserId.has(studentKey)) {
+      studentsByUserId.set(studentKey, {
+        userId: userId || null,
+        userRole: "learner",
+        studentName,
+        totalSamples: 0,
+        counts: {
+          engaged: 0,
+          focused: 0,
+          distracted: 0,
+          inactive: 0,
+        },
+        percentages: {
+          engaged: 0,
+          focused: 0,
+          distracted: 0,
+          inactive: 0,
+        },
+        attentionScore: 0,
+        allCounts: {
+          engaged: 0,
+          focused: 0,
+          distracted: 0,
+          inactive: 0,
+          present: 0,
+          rejoining: 0,
+        },
+        allPercentages: {
+          engaged: 0,
+          focused: 0,
+          distracted: 0,
+          inactive: 0,
+          present: 0,
+          rejoining: 0,
+        },
+        lastSeenAt: null,
+      });
+    }
+
+    const student = studentsByUserId.get(studentKey)!;
+    const samples = Array.isArray(doc.emotions) ? doc.emotions : [];
+
+    samples.forEach((sample) => {
+      const key = normalizeAttentionKey(sample?.emotion ?? sample?.status);
+      if (!key) return;
+
+      student.totalSamples += 1;
+
+      if (key in counts) {
+        counts[key] += 1;
+      }
+
+      if (student.allCounts && key in student.allCounts) {
+        student.allCounts[key] = (student.allCounts[key] || 0) + 1;
+      }
+
+      if (key === "engaged" || key === "focused" || key === "distracted" || key === "inactive") {
+        student.counts[key] += 1;
+      }
+
+      const timestamp = sample.timestamp ? new Date(sample.timestamp) : null;
+      if (timestamp && !Number.isNaN(timestamp.getTime())) {
+        const currentLastSeen = student.lastSeenAt ? new Date(student.lastSeenAt).getTime() : 0;
+        if (!currentLastSeen || timestamp.getTime() > currentLastSeen) {
+          student.lastSeenAt = timestamp.toISOString();
+        }
+      }
+    });
+
+    const sampleTotal = student.totalSamples;
+    student.percentages = {
+      engaged: sampleTotal ? Number(((student.counts.engaged / sampleTotal) * 100).toFixed(1)) : 0,
+      focused: sampleTotal ? Number(((student.counts.focused / sampleTotal) * 100).toFixed(1)) : 0,
+      distracted: sampleTotal ? Number(((student.counts.distracted / sampleTotal) * 100).toFixed(1)) : 0,
+      inactive: sampleTotal ? Number(((student.counts.inactive / sampleTotal) * 100).toFixed(1)) : 0,
+    };
+
+    student.allPercentages = {
+      engaged: sampleTotal ? Number(((student.allCounts?.engaged || 0) / sampleTotal * 100).toFixed(1)) : 0,
+      focused: sampleTotal ? Number(((student.allCounts?.focused || 0) / sampleTotal * 100).toFixed(1)) : 0,
+      distracted: sampleTotal ? Number(((student.allCounts?.distracted || 0) / sampleTotal * 100).toFixed(1)) : 0,
+      inactive: sampleTotal ? Number(((student.allCounts?.inactive || 0) / sampleTotal * 100).toFixed(1)) : 0,
+      present: sampleTotal ? Number(((student.allCounts?.present || 0) / sampleTotal * 100).toFixed(1)) : 0,
+      rejoining: sampleTotal ? Number(((student.allCounts?.rejoining || 0) / sampleTotal * 100).toFixed(1)) : 0,
+    };
+
+    const weightedScore =
+      (student.allCounts?.engaged || 0) * ATTENTION_SCORE_WEIGHTS.engaged +
+      (student.allCounts?.focused || 0) * ATTENTION_SCORE_WEIGHTS.focused +
+      (student.allCounts?.present || 0) * ATTENTION_SCORE_WEIGHTS.present +
+      (student.allCounts?.rejoining || 0) * ATTENTION_SCORE_WEIGHTS.rejoining +
+      (student.allCounts?.distracted || 0) * ATTENTION_SCORE_WEIGHTS.distracted +
+      (student.allCounts?.inactive || 0) * ATTENTION_SCORE_WEIGHTS.inactive;
+
+    student.attentionScore = sampleTotal ? Number(((weightedScore / sampleTotal) * 100).toFixed(1)) : 0;
+  });
+
+  const students = Array.from(studentsByUserId.values()).sort((a, b) => b.totalSamples - a.totalSamples || a.studentName.localeCompare(b.studentName));
+  const totalSamples = students.reduce((acc, student) => acc + student.totalSamples, 0);
+
+  const percentages = Object.keys(counts).reduce((acc, key) => {
+    acc[key] = totalSamples ? Number(((counts[key] / totalSamples) * 100).toFixed(1)) : 0;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const weightedSummaryScore =
+    counts.engaged * ATTENTION_SCORE_WEIGHTS.engaged +
+    counts.focused * ATTENTION_SCORE_WEIGHTS.focused +
+    counts.present * ATTENTION_SCORE_WEIGHTS.present +
+    counts.rejoining * ATTENTION_SCORE_WEIGHTS.rejoining +
+    counts.distracted * ATTENTION_SCORE_WEIGHTS.distracted +
+    counts.inactive * ATTENTION_SCORE_WEIGHTS.inactive;
+
+  const summary: AttentionSummaryResponse = {
+    summary: {
+      counts: {
+        engaged: counts.engaged,
+        focused: counts.focused,
+        distracted: counts.distracted,
+        inactive: counts.inactive,
+      },
+      percentages,
+      totalSamples,
+      totalLearners: studentsByUserId.size,
+      attentionScore: totalSamples ? Number(((weightedSummaryScore / totalSamples) * 100).toFixed(1)) : 0,
+      scoredSamples: totalSamples,
+    },
+    students,
+  };
+
+  console.log("calculated summary:", summary);
+  return summary;
 };
 
 const particlesOptions: ISourceOptions = {
@@ -223,20 +398,26 @@ const MentorDashboardPage = () => {
       setAttentionError("");
 
       try {
-        const primaryResponse = await fetch(`${API_BASE}/emotion/session-summary/${encodeURIComponent(roomId)}`, {
+        const primaryResponse = await fetch(`${API_BASE}/emotion/debug/${encodeURIComponent(roomId)}`, {
           signal: controller.signal,
         });
         const primaryData = await parseApiResponse(primaryResponse);
         console.debug("[mentor-dashboard] fetched attention summary", { roomId, status: primaryResponse.status, body: primaryData });
 
-        if (primaryResponse.ok) {
-          setAttentionSummary(primaryData as AttentionSummaryResponse);
-          return;
+        if (!primaryResponse.ok) {
+          const messageBody = primaryData && typeof primaryData === "object" ? JSON.stringify(primaryData) : String(primaryData);
+          throw new Error(`Failed to load attention summary (status: ${primaryResponse.status}) ${messageBody}`);
         }
 
-        const messageBody = primaryData && typeof primaryData === "object" ? JSON.stringify(primaryData) : String(primaryData);
-        const message = `Failed to load attention summary (status: ${primaryResponse.status}) ${messageBody}`;
-        throw new Error(message);
+        const emotionDocs = Array.isArray(primaryData?.emotions)
+          ? (primaryData.emotions as EmotionDoc[])
+          : Array.isArray(primaryData)
+            ? (primaryData as EmotionDoc[])
+            : [];
+
+        console.log("emotion docs:", emotionDocs);
+        const summary = calculateAttentionSummaryFromDocs(emotionDocs);
+        setAttentionSummary(summary);
       } catch (error) {
         if (!controller.signal.aborted) {
           setAttentionSummary(null);

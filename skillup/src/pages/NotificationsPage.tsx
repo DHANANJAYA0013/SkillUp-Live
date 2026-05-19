@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAuth } from "@/features/authsystem/AuthContext";
 import { useNavigate } from "react-router-dom";
 
 const apiBase = import.meta.env.VITE_API_BASE || "";
@@ -22,23 +21,34 @@ const timeAgo = (isoDate) => {
 };
 
 const NotificationsPage = () => {
-  const { user, token } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const user = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("user"));
+    } catch {
+      return null;
+    }
+  })();
+
   const fetchNotifications = useCallback(async () => {
-    if (!user?._id) return;
+    console.log("user id:", user?._id);
+    if (!user?._id) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
       const res = await fetch(`${apiBase}/api/notifications/${user._id}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error(`Status ${res.status}`);
       const body = await res.json();
       const notes = Array.isArray(body.notifications) ? body.notifications : [];
+      console.log("notifications:", body);
       // sort newest first by createdAt
       notes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setNotifications(notes);
@@ -47,7 +57,7 @@ const NotificationsPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?._id, token]);
+  }, [user?._id]);
 
   useEffect(() => {
     void fetchNotifications();
@@ -61,7 +71,6 @@ const NotificationsPage = () => {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
       if (!res.ok) throw new Error("Failed");
@@ -69,7 +78,7 @@ const NotificationsPage = () => {
     } catch (e) {
       // ignore
     }
-  }, [token]);
+  }, []);
 
   const markAllRead = useCallback(async () => {
     if (!user?._id) return;
@@ -78,7 +87,6 @@ const NotificationsPage = () => {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
       if (res.ok) {
@@ -87,7 +95,7 @@ const NotificationsPage = () => {
     } catch (e) {
       // ignore
     }
-  }, [user?._id, token]);
+  }, [user?._id]);
 
   const openNotification = useCallback(async (note) => {
     // mark read then navigate to session room if possible

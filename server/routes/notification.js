@@ -9,11 +9,18 @@ const isValidObjectId = (v) => typeof v === "string" && mongoose.Types.ObjectId.
 // GET /notifications/:userId - return notifications for a user sorted newest first
 router.get("/:userId", async (req, res) => {
   try {
-    const { userId } = req.params;
-    if (!isValidObjectId(userId)) return res.status(400).json({ error: "Invalid userId" });
+    console.log("Fetching notifications for:", req.params.userId);
 
-    const notes = await Notification.find({ recipientId: userId }).sort({ createdAt: -1 }).lean();
-    return res.json({ count: notes.length, notifications: notes });
+    if (!isValidObjectId(req.params.userId)) return res.status(400).json({ error: "Invalid userId" });
+
+    const userId = new mongoose.Types.ObjectId(req.params.userId);
+    const notifications = await Notification.find({ recipientId: userId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    console.log("Found:", notifications.length);
+
+    return res.json({ count: notifications.length, notifications });
   } catch (err) {
     console.error("[notifications/get]", err && err.message ? err.message : err);
     return res.status(500).json({ error: "Failed to fetch notifications" });
