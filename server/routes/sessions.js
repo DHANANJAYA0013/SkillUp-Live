@@ -2,6 +2,8 @@ const express = require("express");
 const mongoose = require("mongoose");
 const Session = require("../models/Session");
 const Attendance = require("../models/Attendance");
+const User = require("../models/User");
+const Notification = require("../models/Notification");
 const { verifyToken, requireRole } = require("../middleware/auth");
 
 const router = express.Router();
@@ -113,6 +115,37 @@ router.post("/", verifyToken, requireRole("mentor"), async (req, res) => {
       },
       { upsert: true, new: true }
     );
+
+    // After session created successfully, create notifications for mentor followers
+    try {
+      const mentor = await User.findById(req.user._id).select("followers name").lean();
+      const followers = Array.isArray(mentor?.followers) ? mentor.followers : [];
+
+      if (followers.length > 0) {
+        const senderName = mentor?.name || req.user.name || "";
+        const sessionId = session._id;
+        const sessionTitle = session.title || "";
+        const message = `${senderName} scheduled a new session: ${sessionTitle}`;
+
+        const createPromises = followers.map((followerId) =>
+          Notification.create({
+            recipientId: followerId,
+            senderId: req.user._id,
+            senderName,
+            type: "new_session",
+            sessionId,
+            sessionTitle,
+            message,
+            isRead: false,
+          })
+        );
+
+        await Promise.all(createPromises);
+      }
+    } catch (notifErr) {
+      console.warn("[Create Session] Failed to create follower notifications:", notifErr && notifErr.message ? notifErr.message : notifErr);
+      // Do not fail session creation if notifications fail
+    }
 
     return res.status(201).json({ session });
   } catch (err) {

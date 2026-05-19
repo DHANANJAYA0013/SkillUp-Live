@@ -9,6 +9,7 @@ const { router: sessionsRouter } = require("./routes/sessions");
 const { router: adminRouter } = require("./routes/admin");
 const attendanceRoutes = require("./routes/attendance");
 const emotionRoutes = require("./routes/emotion");
+const notificationRoutes = require("./routes/notification");
 
 const app = express();
 
@@ -59,6 +60,7 @@ app.use("/api/sessions", sessionsRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/emotion", emotionRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 app.use((err, _req, res, next) => {
   if (!err) return next();

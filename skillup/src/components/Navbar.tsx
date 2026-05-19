@@ -1,6 +1,7 @@
-import { Link, useLocation } from "react-router-dom";
-import { useState } from "react";
-import { Menu, X, BookOpen } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
+import { Menu, X, BookOpen, Bell } from "lucide-react";
+import { useAuth } from "@/features/authsystem/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -14,6 +15,36 @@ const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const isProfile = location.pathname.startsWith("/profile");
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [unread, setUnread] = useState(0);
+
+  const fetchUnread = useCallback(async (signal) => {
+    try {
+      if (!user?._id) {
+        setUnread(0);
+        return;
+      }
+      const res = await fetch(`${import.meta.env.VITE_API_BASE || ""}/api/notifications/${user._id}`, { signal });
+      if (!res.ok) return;
+      const body = await res.json();
+      const notes = Array.isArray(body.notifications) ? body.notifications : (body.notifications || []);
+      const count = notes.reduce((acc, n) => acc + (n.isRead ? 0 : 1), 0);
+      setUnread(count);
+    } catch (e) {
+      // ignore fetch abort or errors
+    }
+  }, [user?._id]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchUnread(controller.signal);
+    const interval = setInterval(() => void fetchUnread(new AbortController().signal), 25000);
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
+  }, [fetchUnread]);
 
   const handleBrandClick = () => {
     setMobileOpen(false);
@@ -51,6 +82,20 @@ const Navbar = () => {
 
           {/* Right side */}
           <div className="hidden md:flex items-center gap-3">
+            <button
+              type="button"
+              aria-label="Notifications"
+              onClick={() => navigate("/notifications")}
+              className="relative p-1 text-foreground hover:text-foreground/80"
+            >
+              <Bell className="w-6 h-6" />
+              {unread > 0 && (
+                <span className="absolute -top-1 -right-1 inline-flex items-center justify-center rounded-full bg-destructive text-white text-[11px] px-1.5 py-0.5">
+                  {unread}
+                </span>
+              )}
+            </button>
+
             <Link to="/profile" className="flex items-center" aria-label="Profile">
               <Avatar
                 className={`h-10 w-10 border ${isProfile ? "border-primary ring-2 ring-primary/30" : "border-transparent"}`}
@@ -95,16 +140,35 @@ const Navbar = () => {
               isProfile ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
             }`}
           >
-            <Avatar className="h-9 w-9 border border-border">
+            <div className="flex items-center gap-3 w-full">
+              <button
+                type="button"
+                aria-label="Notifications"
+                onClick={() => {
+                  setMobileOpen(false);
+                  navigate("/notifications");
+                }}
+                className="relative p-1 text-foreground hover:text-foreground/80"
+              >
+                <Bell className="w-5 h-5" />
+                {unread > 0 && (
+                  <span className="absolute -top-1 -right-1 inline-flex items-center justify-center rounded-full bg-destructive text-white text-[11px] px-1.5 py-0.5">
+                    {unread}
+                  </span>
+                )}
+              </button>
+
+              <Avatar className="h-9 w-9 border border-border">
               <AvatarImage
                 src="https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=200&q=80"
                 alt="Profile"
               />
               <AvatarFallback>DH</AvatarFallback>
-            </Avatar>
-            <div className="flex flex-col">
-              <span>Profile</span>
-              <span className="text-xs text-muted-foreground">View and update</span>
+              </Avatar>
+              <div className="flex flex-col">
+                <span>Profile</span>
+                <span className="text-xs text-muted-foreground">View and update</span>
+              </div>
             </div>
           </Link>
         </div>
