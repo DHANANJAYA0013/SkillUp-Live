@@ -84,11 +84,43 @@ const resolveSessionContext = async (sessionId) => {
   };
 };
 
-const fetchEmotionDocsForSession = async (candidateSessionIds) => Emotion.find({
-  sessionId: { $in: candidateSessionIds },
-})
-  .populate("userId", "name email role")
-  .lean();
+const fetchEmotionDocsForSession = async (candidateSessionIds) => {
+  // Try exact matches first
+  let docs = await Emotion.find({ sessionId: { $in: candidateSessionIds } })
+    .populate("userId", "name email role")
+    .lean();
+
+  if (docs && docs.length > 0) return docs;
+
+  // Fallback: try case-insensitive regex matches for each candidate id
+  try {
+    const regexes = candidateSessionIds.map((id) => new RegExp(id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+    console.debug("[emotion] no exact match for sessionIds, trying regex fallback", { candidateSessionIds });
+    docs = await Emotion.find({ sessionId: { $in: regexes } })
+      .populate("userId", "name email role")
+      .lean();
+    if (docs && docs.length > 0) {
+      console.debug("[emotion] regex fallback matched emotion docs", { count: docs.length });
+      return docs;
+    }
+  } catch (err) {
+    console.warn("[emotion] regex fallback failed", err && err.message ? err.message : err);
+  }
+
+  // Final fallback: try matching by trimming and comparing
+  try {
+    const trimmed = candidateSessionIds.map((s) => String(s).trim());
+    docs = await Emotion.find({ sessionId: { $in: trimmed } })
+      .populate("userId", "name email role")
+      .lean();
+    console.debug("[emotion] final trimmed fallback matched", { count: docs.length });
+    return docs;
+  } catch (err) {
+    console.warn("[emotion] final fallback failed", err && err.message ? err.message : err);
+  }
+
+  return [];
+};
 
 const buildAttentionSessionSummary = (sessionId, emotionDocs, mentorUserId) => {
   const summaryCounts = createEmptyAttentionCounts();
@@ -129,8 +161,6 @@ const buildAttentionSessionSummary = (sessionId, emotionDocs, mentorUserId) => {
       const status = normalizeAttentionStatus(emotionEntry.emotion);
       const timestamp = emotionEntry.timestamp ? new Date(emotionEntry.timestamp) : null;
 
-      totalSamples += 1;
-
       if (ATTENTION_KEYS.includes(status)) {
         summaryCounts[status] += 1;
         student.counts[status] += 1;
@@ -147,6 +177,9 @@ const buildAttentionSessionSummary = (sessionId, emotionDocs, mentorUserId) => {
       }
     });
   });
+
+  // Compute totalSamples as the sum of per-student samples (excludes mentor/admin by earlier filter)
+  totalSamples = Array.from(studentMap.values()).reduce((acc, s) => acc + (s.totalSamples || 0), 0);
 
   const summaryPercentages = buildAttentionPercentages(summaryCounts, totalSamples);
   const attentionScore = getAttentionScore(summaryCounts, totalSamples);
@@ -271,10 +304,16 @@ const handleSessionSummary = async (res, sessionId) => {
       return res.status(400).json({ error: "sessionId is required" });
     }
 
-    const { mentorUserId, candidateSessionIds } = await resolveSessionContext(sessionId);
-    const emotionDocs = await fetchEmotionDocsForSession(candidateSessionIds);
+    const { mentorUserId, candidateSessionIds, session } = await resolveSessionContext(sessionId);
+    console.debug("[emotion] session-summary request", { sessionId, resolvedSessionId: session?._id, roomId: session?.roomId, candidateSessionIds });
 
-    return res.json(buildAttentionSessionSummary(sessionId, emotionDocs, mentorUserId));
+    const emotionDocs = await fetchEmotionDocsForSession(candidateSessionIds);
+    console.debug("[emotion] fetched emotion docs count", { count: Array.isArray(emotionDocs) ? emotionDocs.length : 0, sample: (Array.isArray(emotionDocs) && emotionDocs[0]) ? { _id: emotionDocs[0]._id, userId: emotionDocs[0].userId, emotionsCount: Array.isArray(emotionDocs[0].emotions) ? emotionDocs[0].emotions.length : 0 } : null });
+
+    const summary = buildAttentionSessionSummary(sessionId, emotionDocs, mentorUserId);
+    console.debug("[emotion] built attention summary", { sessionId, totalSamples: summary.summary.totalSamples, totalLearners: summary.summary.totalLearners });
+
+    return res.json(summary);
   } catch (error) {
     console.error("[emotion/session-summary]", error.message);
     return res.status(500).json({ error: "Failed to build attention summary" });
@@ -289,6 +328,23 @@ router.get("/summary", async (req, res) => {
 router.get("/session-summary/:sessionId", async (req, res) => {
   const sessionId = typeof req.params?.sessionId === "string" ? req.params.sessionId.trim() : "";
   return handleSessionSummary(res, sessionId);
+});
+
+// Debug endpoint - returns resolved session info and raw emotion documents
+// NOTE: Temporary helper for debugging; remove or secure in production.
+router.get("/debug/:sessionId", async (req, res) => {
+  try {
+    const sessionId = typeof req.params?.sessionId === "string" ? req.params.sessionId.trim() : "";
+    if (!sessionId) return res.status(400).json({ error: "sessionId is required" });
+
+    const { mentorUserId, candidateSessionIds, session } = await resolveSessionContext(sessionId);
+    const emotionDocs = await fetchEmotionDocsForSession(candidateSessionIds);
+
+    return res.json({ session: session || null, candidateSessionIds, fetched: Array.isArray(emotionDocs) ? emotionDocs.length : 0, emotions: emotionDocs });
+  } catch (err) {
+    console.error("[emotion/debug]", err && err.message ? err.message : err);
+    return res.status(500).json({ error: "debug failed" });
+  }
 });
 
 module.exports = router;

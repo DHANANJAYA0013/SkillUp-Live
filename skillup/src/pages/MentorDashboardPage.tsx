@@ -227,20 +227,22 @@ const MentorDashboardPage = () => {
           signal: controller.signal,
         });
         const primaryData = await parseApiResponse(primaryResponse);
+        console.debug("[mentor-dashboard] fetched attention summary", { roomId, status: primaryResponse.status, body: primaryData });
 
         if (primaryResponse.ok) {
           setAttentionSummary(primaryData as AttentionSummaryResponse);
           return;
         }
 
-        const message = primaryData && typeof primaryData === "object" && "error" in primaryData
-          ? String((primaryData as { error: unknown }).error)
-          : "Failed to load attention summary";
+        const messageBody = primaryData && typeof primaryData === "object" ? JSON.stringify(primaryData) : String(primaryData);
+        const message = `Failed to load attention summary (status: ${primaryResponse.status}) ${messageBody}`;
         throw new Error(message);
       } catch (error) {
         if (!controller.signal.aborted) {
           setAttentionSummary(null);
-          setAttentionError(error instanceof Error ? error.message : "Failed to load attention summary");
+          const msg = error instanceof Error ? error.message : "Failed to load attention summary";
+          console.warn("[mentor-dashboard] attention load error:", msg);
+          setAttentionError(msg);
         }
       } finally {
         if (!controller.signal.aborted) {
