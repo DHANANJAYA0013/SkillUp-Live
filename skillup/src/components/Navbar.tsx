@@ -20,6 +20,8 @@ const Navbar = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
+  const displayAvatar = user?.avatar || "https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=200&q=80";
+  const displayInitials = (user?.name || user?.email || "DH").slice(0, 2).toUpperCase();
 
   const fetchUnreadCount = useCallback(async () => {
     try {
@@ -124,11 +126,8 @@ const Navbar = () => {
               <Avatar
                 className={`h-10 w-10 border ${isProfile ? "border-primary ring-2 ring-primary/30" : "border-transparent"}`}
               >
-                <AvatarImage
-                  src="https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=200&q=80"
-                  alt="Profile"
-                />
-                <AvatarFallback>DH</AvatarFallback>
+                <AvatarImage src={displayAvatar} alt={user?.name || "Profile"} />
+                <AvatarFallback>{displayInitials}</AvatarFallback>
               </Avatar>
             </Link>
           </div>
@@ -185,11 +184,8 @@ const Navbar = () => {
               }`}
             >
               <Avatar className="h-9 w-9 border border-border shrink-0">
-                <AvatarImage
-                  src="https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=200&q=80"
-                  alt="Profile"
-                />
-                <AvatarFallback>DH</AvatarFallback>
+                <AvatarImage src={displayAvatar} alt={user?.name || "Profile"} />
+                <AvatarFallback>{displayInitials}</AvatarFallback>
               </Avatar>
               <div className="flex flex-col items-start">
                 <span>Profile</span>

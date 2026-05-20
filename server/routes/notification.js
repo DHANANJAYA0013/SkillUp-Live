@@ -30,15 +30,25 @@ router.get("/:userId", async (req, res) => {
 
     if (!isValidObjectId(req.params.userId)) return res.status(400).json({ error: "Invalid userId" });
 
-    const notifications = await Notification.find({
-      recipientId: req.params.userId,
-    })
+    const notifications = await Notification.find({ recipientId: req.params.userId })
       .sort({ createdAt: -1 })
+      .populate("senderId", "name avatar")
       .lean();
 
-    console.log("Found:", notifications.length);
+    // normalize to include senderAvatar and senderName from populated user when available
+    const normalized = notifications.map((n) => {
+      const sender = n.senderId && typeof n.senderId === "object" ? n.senderId : null;
+      return {
+        ...n,
+        senderAvatar: sender?.avatar || undefined,
+        senderName: n.senderName || sender?.name || "",
+        senderId: sender?._id || n.senderId,
+      };
+    });
 
-    return res.json(notifications);
+    console.log("Found:", normalized.length);
+
+    return res.json({ notifications: normalized });
   } catch (err) {
     console.error("[notifications/get]", err && err.message ? err.message : err);
     return res.status(500).json({ error: "Failed to fetch notifications" });
