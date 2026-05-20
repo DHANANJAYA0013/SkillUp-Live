@@ -40,9 +40,21 @@ const Navbar = () => {
 
   useEffect(() => {
     void fetchUnreadCount();
-    const interval = setInterval(() => void fetchUnreadCount(), 10000);
+  }, [fetchUnreadCount, location.pathname, user?._id]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchUnreadCount();
+      }
+    };
+
+    window.addEventListener("focus", fetchUnreadCount);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
     return () => {
-      clearInterval(interval);
+      window.removeEventListener("focus", fetchUnreadCount);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [fetchUnreadCount]);
 
