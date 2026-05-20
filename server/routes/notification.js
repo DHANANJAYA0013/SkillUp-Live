@@ -6,6 +6,23 @@ const router = express.Router();
 
 const isValidObjectId = (v) => typeof v === "string" && mongoose.Types.ObjectId.isValid(v);
 
+// GET /notifications/unread-count/:userId - unread notification count for a user
+router.get("/unread-count/:userId", async (req, res) => {
+  try {
+    if (!isValidObjectId(req.params.userId)) return res.status(400).json({ error: "Invalid userId" });
+
+    const count = await Notification.countDocuments({
+      recipientId: req.params.userId,
+      isRead: false,
+    });
+
+    return res.json({ count });
+  } catch (err) {
+    console.error("[notifications/unread-count]", err && err.message ? err.message : err);
+    return res.status(500).json({ error: "Failed to fetch unread count" });
+  }
+});
+
 // GET /notifications/:userId - return notifications for a user sorted newest first
 router.get("/:userId", async (req, res) => {
   try {
@@ -13,46 +30,42 @@ router.get("/:userId", async (req, res) => {
 
     if (!isValidObjectId(req.params.userId)) return res.status(400).json({ error: "Invalid userId" });
 
-    const userId = new mongoose.Types.ObjectId(req.params.userId);
-    const notifications = await Notification.find({ recipientId: userId })
+    const notifications = await Notification.find({
+      recipientId: req.params.userId,
+    })
       .sort({ createdAt: -1 })
       .lean();
 
     console.log("Found:", notifications.length);
 
-    return res.json({ count: notifications.length, notifications });
+    return res.json(notifications);
   } catch (err) {
     console.error("[notifications/get]", err && err.message ? err.message : err);
     return res.status(500).json({ error: "Failed to fetch notifications" });
   }
 });
 
-// PATCH /notifications/read/:id - set isRead = true for a notification
-router.patch("/read/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (!isValidObjectId(id)) return res.status(400).json({ error: "Invalid notification id" });
-
-    const updated = await Notification.findByIdAndUpdate(id, { $set: { isRead: true } }, { new: true }).lean();
-    if (!updated) return res.status(404).json({ error: "Notification not found" });
-
-    return res.json({ message: "Marked read", notification: updated });
-  } catch (err) {
-    console.error("[notifications/read]", err && err.message ? err.message : err);
-    return res.status(500).json({ error: "Failed to mark notification as read" });
-  }
-});
-
-// PATCH /notifications/read-all/:userId - mark all notifications for user as read
-router.patch("/read-all/:userId", async (req, res) => {
+// PUT /notifications/read/:userId - mark all notifications for a user as read
+router.put("/read/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
     if (!isValidObjectId(userId)) return res.status(400).json({ error: "Invalid userId" });
 
-    const result = await Notification.updateMany({ recipientId: userId, isRead: { $ne: true } }, { $set: { isRead: true } });
-    return res.json({ message: "Marked all as read", modifiedCount: result.nModified ?? result.modifiedCount ?? 0 });
+    await Notification.updateMany(
+      {
+        recipientId: userId,
+        isRead: false,
+      },
+      {
+        $set: {
+          isRead: true,
+        },
+      }
+    );
+
+    return res.json({ success: true, message: "Marked all as read" });
   } catch (err) {
-    console.error("[notifications/read-all]", err && err.message ? err.message : err);
+    console.error("[notifications/read]", err && err.message ? err.message : err);
     return res.status(500).json({ error: "Failed to mark notifications as read" });
   }
 });

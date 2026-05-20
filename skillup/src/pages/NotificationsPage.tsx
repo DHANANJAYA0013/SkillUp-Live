@@ -5,10 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { appSocket } from "@/lib/socket";
-
-const apiBase = import.meta.env.VITE_API_BASE || "";
+import axios from "axios";
+import { useAuth } from "@/features/authsystem/AuthContext";
+import { API_BASE } from "@/features/authsystem/config";
 
 const timeAgo = (isoDate) => {
   if (!isoDate) return "";
@@ -22,140 +21,68 @@ const timeAgo = (isoDate) => {
 };
 
 const NotificationsPage = () => {
-  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const { user, loading: authLoading } = useAuth();
 
-  const user = (() => {
-    try {
-      return JSON.parse(localStorage.getItem("user"));
-    } catch {
-      return null;
-    }
-  })();
-
-  const fetchNotifications = useCallback(async () => {
+  const fetchNotifications = useCallback(async ({ silent = false } = {}) => {
     console.log("user id:", user?._id);
     if (!user?._id) {
       setLoading(false);
       return;
     }
-    setLoading(true);
-    setError("");
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
     try {
-      const res = await fetch(`${apiBase}/api/notifications/${user._id}`, {
-      });
-      if (!res.ok) throw new Error(`Status ${res.status}`);
-      const body = await res.json();
-      const notes = Array.isArray(body.notifications) ? body.notifications : [];
-      console.log("notifications:", body);
-      // sort newest first by createdAt
+      const url = `${API_BASE}/notifications/${user._id}`;
+      console.log("Notification API:", url);
+      const res = await axios.get(url);
+      const notes = res.data?.notifications || res.data || [];
+      console.log("Notifications fetched:", res.data);
       notes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setNotifications(notes);
     } catch (err) {
-      setError("Failed to load notifications");
+      console.error("Failed to load notifications:", err);
+      if (!silent) {
+        setError("Failed to load notifications");
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
-  }, [user?._id]);
-
-  useEffect(() => {
-    void fetchNotifications();
-  }, [fetchNotifications]);
-
-  useEffect(() => {
-    if (!user?._id) return;
-
-    appSocket.emit("register-user", user._id);
-    const onConnect = () => {
-      appSocket.emit("register-user", user._id);
-    };
-
-    const onNotification = (notification) => {
-      console.log("notification received:", notification);
-      setNotifications((prev) => {
-        const exists = prev.some((n) => String(n._id) === String(notification?._id));
-        if (exists) return prev;
-        return [notification, ...prev];
-      });
-    };
-
-    appSocket.on("connect", onConnect);
-    appSocket.on("new_notification", onNotification);
-
-    return () => {
-      appSocket.off("connect", onConnect);
-      appSocket.off("new_notification", onNotification);
-    };
   }, [user?._id]);
 
   const unreadCount = useMemo(() => notifications.reduce((acc, n) => acc + (n.isRead ? 0 : 1), 0), [notifications]);
 
-  const markRead = useCallback(async (id) => {
-    try {
-      const res = await fetch(`${apiBase}/api/notifications/read/${id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-      if (!res.ok) throw new Error("Failed");
-      setNotifications((prev) => prev.map((n) => (String(n._id) === String(id) ? { ...n, isRead: true } : n)));
-    } catch (e) {
-      // ignore
-    }
-  }, []);
-
   const markAllRead = useCallback(async () => {
     if (!user?._id) return;
     try {
-      const res = await fetch(`${apiBase}/api/notifications/read-all/${user._id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-      if (res.ok) {
+      const url = `${API_BASE}/notifications/read/${user._id}`;
+      console.log("Notification API:", url);
+      const res = await axios.put(url);
+      if (res.status >= 200 && res.status < 300) {
+        console.log("Marked all read");
         setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-        window.dispatchEvent(new CustomEvent("notifications-unread-reset", { detail: { count: 0 } }));
+        window.dispatchEvent(new Event("notifications-unread-reset"));
       }
     } catch (e) {
-      // ignore
+      console.log("Mark read failed", e);
     }
   }, [user?._id]);
 
   useEffect(() => {
-    // Opening notifications page should mark all as read and reset navbar badge
-    void markAllRead();
-  }, [markAllRead]);
+    if (authLoading) return;
+    const loadNotifications = async () => {
+      await fetchNotifications();
+      await markAllRead();
+    };
 
-  const openNotification = useCallback(async (note) => {
-    // mark read then navigate to session room if possible
-    if (!note) return;
-    try {
-      await markRead(note._id);
-    } catch {}
-
-    // Try to fetch sessions to resolve roomId
-    try {
-      const res = await fetch(`${apiBase}/api/sessions`);
-      if (!res.ok) {
-        navigate("/sessions");
-        return;
-      }
-      const body = await res.json();
-      const sessions = Array.isArray(body.sessions) ? body.sessions : (body.sessions || []);
-      const s = sessions.find((ss) => String(ss._id) === String(note.sessionId));
-      if (s && s.roomId) {
-        navigate(`/room/${s.roomId}?name=${encodeURIComponent(user?.name || "")}`);
-      } else {
-        navigate("/sessions");
-      }
-    } catch (e) {
-      navigate("/sessions");
-    }
-  }, [markRead, navigate, user?.name]);
+    void loadNotifications();
+  }, [authLoading, fetchNotifications, markAllRead]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -170,6 +97,9 @@ const NotificationsPage = () => {
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={markAllRead}>
               Mark all as read
+            </Button>
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => void fetchNotifications()}>
+              ↻ Refresh
             </Button>
           </div>
         </div>
@@ -190,7 +120,7 @@ const NotificationsPage = () => {
               <div className="p-6 text-center text-sm text-muted-foreground">No notifications yet</div>
             )}
             {!loading && notifications.map((note) => (
-              <div key={note._id} className={`flex items-start gap-4 p-4 sm:p-5 cursor-pointer ${note.isRead ? "bg-transparent" : "bg-white/5"}`} onClick={() => void openNotification(note)}>
+              <div key={note._id} className={`flex items-start gap-4 p-4 sm:p-5 ${note.isRead ? "bg-transparent" : "bg-white/5"}`}>
                 <Avatar className="h-10 w-10 border border-border">
                   <AvatarImage src={note.senderAvatar || "https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=200&q=80"} alt={note.senderName || ""} />
                   <AvatarFallback>{(note.senderName || "?").split(" ").map(s => s[0]).join("")}</AvatarFallback>

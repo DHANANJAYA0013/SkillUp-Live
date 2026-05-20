@@ -4,7 +4,8 @@ import { Menu, X, BookOpen, Bell } from "lucide-react";
 import { useAuth } from "@/features/authsystem/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { appSocket } from "@/lib/socket";
+import axios from "axios";
+import { API_BASE } from "@/features/authsystem/config";
 
 const navLinks = [
   { label: "Find Mentors", path: "/mentors" },
@@ -18,75 +19,44 @@ const Navbar = () => {
   const isProfile = location.pathname.startsWith("/profile");
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [unread, setUnread] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  const broadcastUnread = useCallback((count) => {
-    console.log("badge count:", count);
-    window.dispatchEvent(new CustomEvent("notifications-unread-updated", { detail: { count } }));
-  }, []);
-
-  const fetchUnread = useCallback(async (signal) => {
+  const fetchUnreadCount = useCallback(async () => {
     try {
       if (!user?._id) {
-        setUnread(0);
+        setUnreadCount(0);
         return;
       }
-      const res = await fetch(`${import.meta.env.VITE_API_BASE || ""}/api/notifications/${user._id}`, { signal });
-      if (!res.ok) return;
-      const body = await res.json();
-      const notes = Array.isArray(body.notifications) ? body.notifications : (body.notifications || []);
-      const count = notes.reduce((acc, n) => acc + (n.isRead ? 0 : 1), 0);
-      setUnread(count);
-      broadcastUnread(count);
-    } catch (e) {
-      // ignore fetch abort or errors
+      const url = `${API_BASE}/notifications/unread-count/${user._id}`;
+      console.log("Notification API:", url);
+      const res = await axios.get(url);
+      const count = Number(res.data?.count ?? 0);
+      setUnreadCount(Number.isFinite(count) ? count : 0);
+      console.log("Unread count:", count);
+    } catch (err) {
+      console.log("Unread fetch failed", err);
     }
-  }, [broadcastUnread, user?._id]);
+  }, [user?._id]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void fetchUnread(controller.signal);
-    const interval = setInterval(() => void fetchUnread(new AbortController().signal), 25000);
+    void fetchUnreadCount();
+    const interval = setInterval(() => void fetchUnreadCount(), 10000);
     return () => {
-      controller.abort();
       clearInterval(interval);
     };
-  }, [fetchUnread]);
+  }, [fetchUnreadCount]);
 
   useEffect(() => {
-    if (!user?._id) return;
-
-    appSocket.emit("register-user", user._id);
-    const onConnect = () => {
-      appSocket.emit("register-user", user._id);
+    const reset = () => {
+      setUnreadCount(0);
     };
 
-    const onNotification = (notification) => {
-      console.log("notification received:", notification);
-      setUnread((prev) => {
-        const next = prev + 1;
-        broadcastUnread(next);
-        return next;
-      });
-    };
-
-    const onUnreadReset = (event) => {
-      const count = Number(event?.detail?.count);
-      const normalized = Number.isFinite(count) ? Math.max(0, count) : 0;
-      setUnread(normalized);
-      broadcastUnread(normalized);
-    };
-
-    appSocket.on("connect", onConnect);
-    appSocket.on("new_notification", onNotification);
-    window.addEventListener("notifications-unread-reset", onUnreadReset);
+    window.addEventListener("notifications-unread-reset", reset);
 
     return () => {
-      appSocket.off("connect", onConnect);
-      appSocket.off("new_notification", onNotification);
-      window.removeEventListener("notifications-unread-reset", onUnreadReset);
+      window.removeEventListener("notifications-unread-reset", reset);
     };
-  }, [broadcastUnread, user?._id]);
+  }, []);
 
   const handleBrandClick = () => {
     setMobileOpen(false);
@@ -131,9 +101,9 @@ const Navbar = () => {
               className="relative p-1 text-foreground hover:text-foreground/80"
             >
               <Bell className="w-6 h-6" />
-              {unread > 0 && (
+              {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 inline-flex items-center justify-center rounded-full bg-destructive text-white text-[11px] px-1.5 py-0.5">
-                  {unread}
+                  {unreadCount}
                 </span>
               )}
             </button>
@@ -188,9 +158,9 @@ const Navbar = () => {
               className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground hover:text-foreground/80"
             >
               <Bell className="w-5 h-5" />
-              {unread > 0 && (
+              {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 inline-flex items-center justify-center rounded-full bg-destructive text-white text-[11px] px-1.5 py-0.5">
-                  {unread}
+                  {unreadCount}
                 </span>
               )}
             </button>
