@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { Star, Clock, Calendar, MapPin, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { motion } from "framer-motion";
+import { Star, Clock, Calendar, MapPin, ArrowLeft, CheckCircle2, Sparkles, ShieldCheck, Users, ChevronRight, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Particles, { initParticlesEngine } from "@tsparticles/react";
 import { loadSlim } from "@tsparticles/slim";
 import type { ISourceOptions } from "@tsparticles/engine";
@@ -20,6 +22,12 @@ interface MentorDetails {
   skills: string[];
   bio: string;
   followersCount?: number;
+}
+
+interface MentorSession {
+  mentorId: string;
+  mentorEmail?: string;
+  status?: "scheduled" | "live" | "completed";
 }
 
 const parseApiResponse = async (res: Response) => {
@@ -42,6 +50,7 @@ const MentorProfilePage = () => {
   const [mentorError, setMentorError] = useState("");
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
+  const [sessionsDoneCount, setSessionsDoneCount] = useState(0);
   const [followLoading, setFollowLoading] = useState(false);
 
   const [particlesReady, setParticlesReady] = useState(false);
@@ -146,6 +155,50 @@ const MentorProfilePage = () => {
 
     return () => controller.abort();
   }, [id, token]);
+
+  useEffect(() => {
+    if (!id) {
+      setSessionsDoneCount(0);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const loadSessionCount = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/sessions`, { signal: controller.signal });
+        const data = await parseApiResponse(res);
+        if (!res.ok) return;
+
+        const sessions =
+          data && typeof data === "object" && "sessions" in data && Array.isArray((data as { sessions: unknown[] }).sessions)
+            ? ((data as { sessions: MentorSession[] }).sessions)
+            : Array.isArray(data)
+              ? (data as MentorSession[])
+              : [];
+
+        const normalizedMentorId = id.trim();
+        const mentorEmail = mentor?.email?.trim().toLowerCase() || "";
+
+        const completedCount = sessions.filter((session) => {
+          const sessionMentorId = String(session.mentorId || "").trim();
+          const sessionMentorEmail = String(session.mentorEmail || "").trim().toLowerCase();
+          const matchesMentor = sessionMentorId === normalizedMentorId || (mentorEmail && sessionMentorEmail === mentorEmail);
+          return matchesMentor && session.status === "completed";
+        }).length;
+
+        setSessionsDoneCount(completedCount);
+      } catch {
+        if (!controller.signal.aborted) {
+          setSessionsDoneCount(0);
+        }
+      }
+    };
+
+    loadSessionCount();
+
+    return () => controller.abort();
+  }, [id, mentor?.email]);
 
   const handleFollowToggle = async () => {
     if (!token) {
@@ -314,110 +367,199 @@ const MentorProfilePage = () => {
   const mentorSkills = Array.isArray(mentor.skills) ? mentor.skills : [];
   const mentorTitle = mentorSkills.length > 0 ? `${mentorSkills[0]} Mentor` : "Mentor";
   const mentorCategory = mentorSkills.length > 0 ? mentorSkills[0] : "General";
+  const mentorTags = mentorSkills.slice(0, 4);
+  const profileStats = [
+    { label: "Followers", value: String(followersCount), icon: Users },
+    { label: "Skills", value: String(mentorSkills.length), icon: GraduationCap },
+    { label: "Status", value: isFollowing ? "Following" : "Not following", icon: ShieldCheck },
+  ];
 
   return (
-    <div className="relative min-h-screen bg-background overflow-hidden">
+    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.14),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.12),_transparent_28%),linear-gradient(135deg,_#f7faff_0%,_#eef4ff_46%,_#fcfdff_100%)]">
+      <style>{`
+        @keyframes floatSoft {
+          0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+          50% { transform: translate3d(0, -18px, 0) scale(1.04); }
+        }
+      `}</style>
       <div className="absolute inset-0 pointer-events-none opacity-95" aria-hidden="true">
         {particlesReady && <Particles id="mentor-profile-particles" className="h-full w-full" options={particlesOptions} />}
       </div>
 
-      <div className="relative z-10">
-      <Navbar />
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
-        <Link to="/mentors" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6">
-          <ArrowLeft className="w-4 h-4" /> Back to Mentors
-        </Link>
+      <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+        <div className="absolute -left-24 top-12 h-72 w-72 rounded-full bg-sky-300/20 blur-3xl" />
+        <div className="absolute -right-20 bottom-8 h-80 w-80 rounded-full bg-indigo-300/20 blur-3xl" />
+        <div className="absolute left-1/3 top-1/3 h-40 w-40 rounded-full bg-fuchsia-300/15 blur-3xl" style={{ animation: "floatSoft 9s ease-in-out infinite" }} />
+      </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Main content */}
-          <div className="lg:col-span-2 space-y-8">
-            <div className="bg-card rounded-xl shadow-card border border-border/50 p-5 sm:p-6">
-              <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-5">
-                <img src={mentor.avatar || fallbackAvatar} alt={mentor.name} className="w-20 h-20 rounded-xl object-cover" />
-                <div className="min-w-0">
-                  <h1 className="text-xl sm:text-2xl font-bold text-foreground">{mentor.name}</h1>
-                  <p className="text-muted-foreground">{mentorTitle}</p>
-                  <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-3">
-                    <div className="flex items-center gap-1">
-                      <Star className="w-4 h-4 fill-accent text-accent" />
-                      <span className="text-sm font-medium">5.0</span>
-                      <span className="text-xs text-muted-foreground">(0 reviews)</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-muted-foreground text-sm">
-                      <Clock className="w-3.5 h-3.5" /> Mentor
+      <div className="relative z-10">
+        <Navbar />
+        <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:space-y-8 sm:px-6 sm:py-10 lg:px-8">
+          <Link to="/mentors" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" /> Back to Mentors
+          </Link>
+
+          <motion.section
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-white/45 p-6 shadow-[0_30px_80px_rgba(91,80,171,0.14)] backdrop-blur-2xl sm:p-8"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-white/80 via-white/25 to-indigo-100/30" aria-hidden="true" />
+            <div className="absolute -right-10 top-0 h-40 w-40 rounded-full bg-fuchsia-400/20 blur-3xl" aria-hidden="true" />
+            <div className="absolute bottom-0 left-1/2 h-44 w-44 -translate-x-1/2 rounded-full bg-sky-400/20 blur-3xl" aria-hidden="true" />
+
+            <div className="relative z-10 grid gap-8 lg:grid-cols-[1.12fr_0.88fr] lg:items-center">
+              <div className="flex h-full flex-col justify-center">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-indigo-700 shadow-sm backdrop-blur-md">
+                  <Sparkles className="h-3.5 w-3.5" /> Mentor profile
+                </div>
+
+                <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-start">
+                  <img
+                    src={mentor.avatar || fallbackAvatar}
+                    alt={mentor.name}
+                    className="h-24 w-24 rounded-[1.5rem] object-cover ring-1 ring-white/80 shadow-lg shadow-indigo-500/10 sm:h-28 sm:w-28"
+                  />
+                  <div className="min-w-0">
+                    <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">{mentor.name}</h1>
+                    <p className="mt-2 text-sm font-medium text-indigo-700 sm:text-base">{mentorTitle}</p>
+                    <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
+                      {mentor.bio || "This mentor has not added a bio yet."}
+                    </p>
+
+                    <div className="mt-5 flex flex-wrap items-center gap-3">
+                      <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-4 py-2 text-sm text-slate-700 shadow-sm backdrop-blur-md">
+                        <Star className="h-4 w-4 fill-accent text-accent" /> 5.0 <span className="text-muted-foreground">(0 reviews)</span>
+                      </div>
+                      <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-4 py-2 text-sm text-slate-700 shadow-sm backdrop-blur-md">
+                        <Clock className="h-4 w-4 text-indigo-600" /> Mentor profile
+                      </div>
+                      <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-4 py-2 text-sm text-slate-700 shadow-sm backdrop-blur-md">
+                        <MapPin className="h-4 w-4 text-indigo-600" /> {mentorCategory}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* About */}
-            <div className="bg-card rounded-xl shadow-card border border-border/50 p-6">
-              <h2 className="text-lg font-semibold text-foreground mb-3">About</h2>
-              <p className="text-muted-foreground leading-relaxed">{mentor.bio || "This mentor has not added a bio yet."}</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                {profileStats.map((item, index) => {
+                  const StatIcon = item.icon;
+                  return (
+                    <motion.div
+                      key={item.label}
+                      initial={{ opacity: 0, y: 14 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.35, delay: 0.05 * index }}
+                      whileHover={{ y: -4, scale: 1.01 }}
+                      className="group relative overflow-hidden rounded-[1.5rem] border border-white/70 bg-white/65 p-4 shadow-lg shadow-indigo-500/10 backdrop-blur-xl"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/15 via-sky-500/10 to-violet-500/15 opacity-80" aria-hidden="true" />
+                      <div className="relative z-10 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{item.label}</p>
+                          <p className="mt-1 text-lg font-bold text-foreground">{item.value}</p>
+                        </div>
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/75 text-indigo-700 shadow-sm ring-1 ring-white/80 backdrop-blur-md">
+                          <StatIcon className="h-5 w-5" />
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
             </div>
+          </motion.section>
 
-            {/* Skills */}
-            <div className="bg-card rounded-xl shadow-card border border-border/50 p-6">
-              <h2 className="text-lg font-semibold text-foreground mb-4">Skills Offered</h2>
-              <div className="flex flex-wrap gap-2">
-                {mentorSkills.map((skill) => (
-                  <Badge key={skill} variant="secondary" className="bg-primary/10 text-primary border-0 px-3 py-1">
-                    <CheckCircle2 className="w-3 h-3 mr-1" /> {skill}
-                  </Badge>
-                ))}
-                {mentorSkills.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No skills added yet.</p>
+          <section className="grid gap-4 lg:grid-cols-[1.08fr_0.92fr] sm:gap-6">
+            <Card className="overflow-hidden border-white/70 bg-white/80 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
+              <CardHeader className="space-y-2 border-b border-white/60 bg-gradient-to-r from-white/80 to-indigo-50/40">
+                <CardTitle className="text-lg sm:text-xl">About</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">A quick introduction to the mentor and their focus areas.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5 p-4 sm:p-6">
+                <p className="text-sm leading-7 text-muted-foreground sm:text-base">{mentor.bio || "This mentor has not added a bio yet."}</p>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground mb-3">Skills Offered</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {mentorSkills.length > 0 ? mentorSkills.map((skill) => (
+                      <Badge key={skill} variant="secondary" className="border-0 bg-primary/10 px-3 py-1 text-primary shadow-sm">
+                        <CheckCircle2 className="mr-1 h-3 w-3" /> {skill}
+                      </Badge>
+                    )) : (
+                      <p className="text-sm text-muted-foreground">No skills added yet.</p>
+                    )}
+                  </div>
+                </div>
+
+                {mentorTags.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground mb-3">Top Tags</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {mentorTags.map((skill) => (
+                        <span key={skill} className="rounded-full border border-white/70 bg-white/70 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-md">
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 )}
-              </div>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-6">
+              <Card className="overflow-hidden border-white/70 bg-white/80 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.08)] lg:sticky lg:top-24">
+                <CardHeader className="space-y-2 border-b border-white/60 bg-gradient-to-r from-white/80 to-indigo-50/40">
+                  <CardTitle className="text-lg sm:text-xl">Follow Mentor</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">Stay connected to this mentor and receive updates.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5 p-4 sm:p-6">
+                  <div className="rounded-2xl border border-white/70 bg-white/75 p-4 text-center shadow-sm backdrop-blur-md">
+                    <div className="text-3xl font-bold text-foreground">{followersCount}</div>
+                    <div className="text-sm text-muted-foreground">followers</div>
+                  </div>
+
+                  <Button
+                    className="w-full gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/20 hover:opacity-95"
+                    onClick={handleFollowToggle}
+                    disabled={followLoading}
+                  >
+                    {followLoading ? "Please wait..." : isFollowing ? "Following" : "Follow"}
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-2xl border border-white/70 bg-white/70 p-3 shadow-sm backdrop-blur-md">
+                      <p className="text-muted-foreground">Sessions done</p>
+                      <p className="mt-1 font-semibold text-foreground">{sessionsDoneCount}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/70 bg-white/70 p-3 shadow-sm backdrop-blur-md">
+                      <p className="text-muted-foreground">Following</p>
+                      <p className="mt-1 font-semibold text-foreground">{isFollowing ? "Yes" : "No"}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/70 bg-white/70 p-3 shadow-sm backdrop-blur-md">
+                      <p className="text-muted-foreground">Experience</p>
+                      <p className="mt-1 font-semibold text-foreground">Mentor</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/70 bg-white/70 p-3 shadow-sm backdrop-blur-md">
+                      <p className="text-muted-foreground">Category</p>
+                      <p className="mt-1 font-semibold text-foreground">{mentorCategory}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/70 bg-white/70 p-4 shadow-sm backdrop-blur-md">
+                    <h3 className="text-sm font-semibold text-foreground mb-2">Availability</h3>
+                    <Badge variant="outline" className="rounded-full text-xs border-white/70 bg-white/80">
+                      To be updated
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            <div className="bg-card rounded-xl shadow-card border border-border/50 p-6 lg:sticky lg:top-24">
-              <div className="text-center mb-6">
-                <div className="text-3xl font-bold text-foreground">{followersCount}</div>
-                <div className="text-sm text-muted-foreground">followers</div>
-              </div>
-              <Button
-                className="w-full gradient-primary text-primary-foreground border-0 mb-3 hover:opacity-90"
-                onClick={handleFollowToggle}
-                disabled={followLoading}
-              >
-                {followLoading ? "Please wait..." : isFollowing ? "Following" : "Follow"}
-              </Button>
-
-              <div className="mt-6 pt-6 border-t border-border/50 space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Sessions done</span>
-                  <span className="font-medium text-foreground">0</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Following</span>
-                  <span className="font-medium text-foreground">{isFollowing ? "Yes" : "No"}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Experience</span>
-                  <span className="font-medium text-foreground">Mentor</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Category</span>
-                  <span className="font-medium text-foreground">{mentorCategory}</span>
-                </div>
-              </div>
-
-              <div className="mt-6 pt-6 border-t border-border/50">
-                <h3 className="text-sm font-medium text-foreground mb-2">Availability</h3>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="outline" className="text-xs">To be updated</Badge>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+          </section>
+        </main>
       </div>
     </div>
   );
