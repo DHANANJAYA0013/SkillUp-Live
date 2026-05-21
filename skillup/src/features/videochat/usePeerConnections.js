@@ -134,9 +134,19 @@ export function usePeerConnections({ socketRef, localStreamRef, onRemoteStream, 
     });
   }, []);
 
+  const addTrackToPeers = useCallback((newTrack, stream) => {
+    Object.values(pcsRef.current).forEach((pc) => {
+      const existingSender = pc.getSenders().find((sender) => sender.track?.kind === newTrack.kind);
+      if (!existingSender && newTrack) {
+        pc.addTrack(newTrack, stream);
+        console.log("[Camera] track added to peer");
+      }
+    });
+  }, []);
+
   const closeAll = useCallback(() => {
     Object.keys(pcsRef.current).forEach(closePC);
   }, [closePC]);
 
-  return { makeOffer, handleOffer, handleAnswer, handleIceCandidate, replaceTrack, closeAll, closePC };
+  return { makeOffer, handleOffer, handleAnswer, handleIceCandidate, replaceTrack, addTrackToPeers, closeAll, closePC };
 }

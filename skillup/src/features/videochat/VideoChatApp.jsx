@@ -124,6 +124,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
   const [faceModelReady, setFaceModelReady] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
   const [emotion, setEmotion] = useState("");
+  const [videoReady, setVideoReady] = useState(0);
   const [debugMode, setDebugMode] = useState(true);
   const [attendanceMarked, setAttendanceMarked] = useState(false);
   const [attendanceAttemptToken, setAttendanceAttemptToken] = useState(0);
@@ -171,7 +172,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
     }));
   }, []);
 
-  const { makeOffer, handleOffer, handleAnswer, handleIceCandidate, replaceTrack, closeAll, closePC } =
+  const { makeOffer, handleOffer, handleAnswer, handleIceCandidate, replaceTrack, addTrackToPeers, closeAll, closePC } =
     usePeerConnections({
       socketRef,
       localStreamRef,
@@ -225,6 +226,24 @@ function Room({ userName, roomId, onLeave, onBack }) {
       console.log("[face-api] Room unmounted. Face model loader cleanup done.");
     };
   }, []);
+
+  useEffect(() => {
+    const videoElement = videoRef.current;
+    if (!videoElement || !localStream) return;
+
+    videoElement.srcObject = null;
+    videoElement.srcObject = localStream;
+    console.log("[Camera] srcObject attached");
+
+    videoElement
+      .play()
+      .then(() => {
+        console.log("[Camera] play started");
+      })
+      .catch((error) => {
+        console.log("[Camera] play error", error);
+      });
+  }, [localStream, videoReady]);
 
   useEffect(() => {
     let cancelled = false;
@@ -769,15 +788,21 @@ function Room({ userName, roomId, onLeave, onBack }) {
 
     if (newState) {
       try {
-        const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        console.log("[Camera] enabled");
+        const newStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         const newTrack = newStream.getVideoTracks()[0];
         stream.getVideoTracks().forEach((t) => {
           t.stop();
           stream.removeTrack(t);
         });
         stream.addTrack(newTrack);
+        const updatedStream = new MediaStream(stream.getTracks());
+        localStreamRef.current = updatedStream;
+        setLocalStream(updatedStream);
+        console.log("[Camera] local stream updated");
+        addTrackToPeers(newTrack, updatedStream);
         replaceTrack("video", newTrack);
-        setLocalStream(new MediaStream(stream.getTracks()));
+        setVideoReady(Date.now());
       } catch {
         // Ignore camera re-enable errors and keep previous state.
       }
@@ -788,7 +813,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
     }
 
     socketRef.current?.emit("media-state", { video: newState, audio: audioOn });
-  }, [videoOn, audioOn, replaceTrack]);
+  }, [videoOn, audioOn, replaceTrack, addTrackToPeers]);
 
   const toggleAudio = useCallback(() => {
     const stream = localStreamRef.current;
@@ -897,6 +922,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
                   style={{ cursor: "pointer" }}
                 >
                   <VideoTile
+                    key={p.isLocal ? `local-${videoReady}` : p.id}
                     stream={p.stream}
                     name={p.name}
                     muted={p.isLocal}
@@ -915,6 +941,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
               <div className="spotlight-main">
                 {spotlightUser && (
                   <VideoTile
+                    key={spotlightUser.isLocal ? `local-${videoReady}` : spotlightUser.id}
                     stream={spotlightUser.stream}
                     name={spotlightUser.name}
                     muted={spotlightUser.isLocal}
@@ -931,6 +958,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
                 {sidebarUsers.map((p) => (
                   <div key={p.id} onClick={() => setSpotlightId(p.id)} style={{ cursor: "pointer" }}>
                     <VideoTile
+                      key={p.isLocal ? `local-${videoReady}` : p.id}
                       stream={p.stream}
                       name={p.name}
                       muted={p.isLocal}
