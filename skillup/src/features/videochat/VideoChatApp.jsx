@@ -172,7 +172,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
     }));
   }, []);
 
-  const { makeOffer, handleOffer, handleAnswer, handleIceCandidate, replaceTrack, addTrackToPeers, closeAll, closePC } =
+  const { makeOffer, handleOffer, handleAnswer, handleIceCandidate, syncVideoTrackOnPeers, stopVideoTrackOnPeers, closeAll, closePC } =
     usePeerConnections({
       socketRef,
       localStreamRef,
@@ -791,29 +791,25 @@ function Room({ userName, roomId, onLeave, onBack }) {
         console.log("[Camera] enabled");
         const newStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         const newTrack = newStream.getVideoTracks()[0];
-        stream.getVideoTracks().forEach((t) => {
-          t.stop();
-          stream.removeTrack(t);
-        });
-        stream.addTrack(newTrack);
-        const updatedStream = new MediaStream(stream.getTracks());
+        const updatedStream = new MediaStream([...stream.getAudioTracks(), newTrack]);
         localStreamRef.current = updatedStream;
         setLocalStream(updatedStream);
         console.log("[Camera] local stream updated");
-        addTrackToPeers(newTrack, updatedStream);
-        replaceTrack("video", newTrack);
+        syncVideoTrackOnPeers(newTrack, updatedStream);
         setVideoReady(Date.now());
       } catch {
         // Ignore camera re-enable errors and keep previous state.
       }
     } else {
-      stream.getVideoTracks().forEach((t) => {
-        t.enabled = false;
+      console.log("[Camera OFF]");
+      stream.getVideoTracks().forEach((track) => {
+        track.stop();
       });
+      stopVideoTrackOnPeers();
     }
 
     socketRef.current?.emit("media-state", { video: newState, audio: audioOn });
-  }, [videoOn, audioOn, replaceTrack, addTrackToPeers]);
+  }, [videoOn, audioOn, syncVideoTrackOnPeers, stopVideoTrackOnPeers]);
 
   const toggleAudio = useCallback(() => {
     const stream = localStreamRef.current;

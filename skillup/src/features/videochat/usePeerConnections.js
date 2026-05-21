@@ -46,6 +46,7 @@ export function usePeerConnections({ socketRef, localStreamRef, onRemoteStream, 
       pc.ontrack = (e) => {
         e.streams[0]?.getTracks().forEach((t) => remoteStream.addTrack(t));
         onRemoteStream(peerId, remoteStream);
+        console.log("[Remote stream updated]", peerId);
       };
 
       pc.onicecandidate = (e) => {
@@ -130,16 +131,32 @@ export function usePeerConnections({ socketRef, localStreamRef, onRemoteStream, 
   const replaceTrack = useCallback((kind, newTrack) => {
     Object.values(pcsRef.current).forEach((pc) => {
       const sender = pc.getSenders().find((s) => s.track?.kind === kind);
-      if (sender && newTrack) sender.replaceTrack(newTrack).catch(() => {});
+      if (sender && newTrack) {
+        sender.replaceTrack(newTrack).catch(() => {});
+        console.log("[Track replaced]");
+      }
     });
   }, []);
 
-  const addTrackToPeers = useCallback((newTrack, stream) => {
+  const syncVideoTrackOnPeers = useCallback((newTrack, stream) => {
     Object.values(pcsRef.current).forEach((pc) => {
-      const existingSender = pc.getSenders().find((sender) => sender.track?.kind === newTrack.kind);
-      if (!existingSender && newTrack) {
+      const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+      if (sender) {
+        sender.replaceTrack(newTrack).catch(() => {});
+        console.log("[Track replaced]");
+      } else if (newTrack) {
         pc.addTrack(newTrack, stream);
         console.log("[Camera] track added to peer");
+      }
+    });
+  }, []);
+
+  const stopVideoTrackOnPeers = useCallback(() => {
+    Object.values(pcsRef.current).forEach((pc) => {
+      const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+      if (sender?.track) {
+        sender.track.stop();
+        sender.replaceTrack(null).catch(() => {});
       }
     });
   }, []);
@@ -148,5 +165,5 @@ export function usePeerConnections({ socketRef, localStreamRef, onRemoteStream, 
     Object.keys(pcsRef.current).forEach(closePC);
   }, [closePC]);
 
-  return { makeOffer, handleOffer, handleAnswer, handleIceCandidate, replaceTrack, addTrackToPeers, closeAll, closePC };
+  return { makeOffer, handleOffer, handleAnswer, handleIceCandidate, replaceTrack, syncVideoTrackOnPeers, stopVideoTrackOnPeers, closeAll, closePC };
 }
