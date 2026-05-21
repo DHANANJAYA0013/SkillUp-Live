@@ -85,7 +85,7 @@ interface EmotionSample {
 
 interface EmotionDoc {
   name?: string;
-  userId?: string | { _id?: string } | null;
+  userId?: string | { _id?: string; name?: string; email?: string; role?: string } | null;
   sessionId?: string;
   emotions?: EmotionSample[];
 }
@@ -123,14 +123,16 @@ const calculateAttentionSummaryFromDocs = (emotionDocs: EmotionDoc[]): Attention
   const studentsByUserId = new Map<string, AttentionSummaryStudent>();
 
   emotionDocs.forEach((doc) => {
-    const userId = typeof doc.userId === "string" ? doc.userId : doc.userId?._id || null;
+    const user = typeof doc.userId === "string" ? null : doc.userId || null;
+    const userId = typeof doc.userId === "string" ? doc.userId : user?._id || null;
+    const userRole = typeof user?.role === "string" ? user.role.trim().toLowerCase() : null;
     const studentKey = userId || doc.name || doc.sessionId || "unknown";
-    const studentName = doc.name || "Unknown student";
+    const studentName = user?.name || doc.name || "Unknown student";
 
     if (!studentsByUserId.has(studentKey)) {
       studentsByUserId.set(studentKey, {
         userId: userId || null,
-        userRole: "learner",
+        userRole: userRole || "learner",
         studentName,
         totalSamples: 0,
         counts: {
@@ -442,20 +444,15 @@ const MentorDashboardPage = () => {
   const visibleAttentionSummary = useMemo(() => {
     if (!attentionSummary) return null;
 
-    const filteredStudents = attentionSummary.students.filter((student) => {
-      if (!student.userRole) return true;
-      return student.userRole === "learner";
-    });
-
     return {
       ...attentionSummary,
       summary: {
         ...attentionSummary.summary,
-        totalLearners: filteredStudents.length,
+        totalLearners: attentionSummary.students.length,
       },
       totalSamples: attentionSummary.summary.totalSamples,
       attentionScore: attentionSummary.summary.attentionScore,
-      students: filteredStudents,
+      students: attentionSummary.students,
     };
   }, [attentionSummary]);
 
