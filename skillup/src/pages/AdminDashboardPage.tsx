@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { API_BASE } from "@/features/authsystem/config";
 
-const EMOTION_KEYS = ["happy", "neutral", "sad", "angry", "surprised", "fearful", "disgusted"] as const;
+const ATTENTION_KEYS = ["engaged", "focused", "distracted", "inactive", "present", "rejoining"] as const;
 
 const ADMIN_AUTH_TOKEN_KEY = "skillup_admin_token";
 
@@ -92,6 +92,129 @@ interface EmotionSummaryResponse {
   students: EmotionSummaryStudent[];
 }
 
+type EmotionDoc = {
+  name?: string;
+  userId?: string | { _id?: string } | null;
+  sessionId?: string;
+  emotions?: Array<{ emotion?: string; status?: string; timestamp?: string | number | Date }>;
+};
+
+const normalizeAttentionKey = (value: unknown) => (typeof value === "string" ? value.trim().toLowerCase() : "");
+
+const calculateAttentionSummaryFromDocs = (emotionDocs: EmotionDoc[]) => {
+  const counts: Record<string, number> = {
+    engaged: 0,
+    focused: 0,
+    distracted: 0,
+    inactive: 0,
+    present: 0,
+    rejoining: 0,
+  };
+
+  const studentsByUserId = new Map<string, any>();
+
+  emotionDocs.forEach((doc) => {
+    const userId = typeof doc.userId === "string" ? doc.userId : doc.userId?._id || null;
+    const studentKey = userId || doc.name || doc.sessionId || "unknown";
+    const studentName = doc.name || "Unknown student";
+
+    if (!studentsByUserId.has(studentKey)) {
+      studentsByUserId.set(studentKey, {
+        userId: userId || null,
+        userRole: "learner",
+        studentName,
+        totalSamples: 0,
+        counts: { engaged: 0, focused: 0, distracted: 0, inactive: 0 },
+        percentages: { engaged: 0, focused: 0, distracted: 0, inactive: 0 },
+        attentionScore: 0,
+        allCounts: { engaged: 0, focused: 0, distracted: 0, inactive: 0, present: 0, rejoining: 0 },
+        allPercentages: { engaged: 0, focused: 0, distracted: 0, inactive: 0, present: 0, rejoining: 0 },
+        lastSeenAt: null,
+      });
+    }
+
+    const student = studentsByUserId.get(studentKey);
+    const samples = Array.isArray(doc.emotions) ? doc.emotions : [];
+
+    samples.forEach((sample) => {
+      const key = normalizeAttentionKey(sample?.emotion ?? sample?.status);
+      if (!key) return;
+
+      student.totalSamples += 1;
+
+      if (key in counts) counts[key] += 1;
+      if (student.allCounts && key in student.allCounts) student.allCounts[key] = (student.allCounts[key] || 0) + 1;
+      if (key === "engaged" || key === "focused" || key === "distracted" || key === "inactive") {
+        student.counts[key] += 1;
+      }
+
+      const timestamp = sample.timestamp ? new Date(sample.timestamp) : null;
+      if (timestamp && !Number.isNaN(timestamp.getTime())) {
+        const currentLastSeen = student.lastSeenAt ? new Date(student.lastSeenAt).getTime() : 0;
+        if (!currentLastSeen || timestamp.getTime() > currentLastSeen) {
+          student.lastSeenAt = timestamp.toISOString();
+        }
+      }
+    });
+
+    const sampleTotal = student.totalSamples;
+    student.percentages = {
+      engaged: sampleTotal ? Number(((student.counts.engaged / sampleTotal) * 100).toFixed(1)) : 0,
+      focused: sampleTotal ? Number(((student.counts.focused / sampleTotal) * 100).toFixed(1)) : 0,
+      distracted: sampleTotal ? Number(((student.counts.distracted / sampleTotal) * 100).toFixed(1)) : 0,
+      inactive: sampleTotal ? Number(((student.counts.inactive / sampleTotal) * 100).toFixed(1)) : 0,
+    };
+
+    student.allPercentages = {
+      engaged: sampleTotal ? Number(((student.allCounts?.engaged || 0) / sampleTotal * 100).toFixed(1)) : 0,
+      focused: sampleTotal ? Number(((student.allCounts?.focused || 0) / sampleTotal * 100).toFixed(1)) : 0,
+      distracted: sampleTotal ? Number(((student.allCounts?.distracted || 0) / sampleTotal * 100).toFixed(1)) : 0,
+      inactive: sampleTotal ? Number(((student.allCounts?.inactive || 0) / sampleTotal * 100).toFixed(1)) : 0,
+      present: sampleTotal ? Number(((student.allCounts?.present || 0) / sampleTotal * 100).toFixed(1)) : 0,
+      rejoining: sampleTotal ? Number(((student.allCounts?.rejoining || 0) / sampleTotal * 100).toFixed(1)) : 0,
+    };
+
+    const weightedScore =
+      (student.allCounts?.engaged || 0) * 1 +
+      (student.allCounts?.focused || 0) * 1 +
+      (student.allCounts?.present || 0) * 0.8 +
+      (student.allCounts?.rejoining || 0) * 0.7 +
+      (student.allCounts?.distracted || 0) * 0.4 +
+      (student.allCounts?.inactive || 0) * 0;
+
+    student.attentionScore = sampleTotal ? Number(((weightedScore / sampleTotal) * 100).toFixed(1)) : 0;
+  });
+
+  const students = Array.from(studentsByUserId.values()).sort((a, b) => b.totalSamples - a.totalSamples || a.studentName.localeCompare(b.studentName));
+  const totalSamples = students.reduce((acc: number, student: any) => acc + student.totalSamples, 0);
+
+  const percentages: Record<string, number> = Object.keys(counts).reduce((acc: Record<string, number>, key) => {
+    acc[key] = totalSamples ? Number(((counts[key] / totalSamples) * 100).toFixed(1)) : 0;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const weightedSummaryScore =
+    counts.engaged * 1 +
+    counts.focused * 1 +
+    counts.present * 0.8 +
+    counts.rejoining * 0.7 +
+    counts.distracted * 0.4 +
+    counts.inactive * 0;
+
+  const summary = {
+    summary: {
+      counts: { engaged: counts.engaged, focused: counts.focused, distracted: counts.distracted, inactive: counts.inactive },
+      percentages,
+      totalSamples,
+      totalLearners: students.length,
+      attentionScore: totalSamples ? Number(((weightedSummaryScore / totalSamples) * 100).toFixed(1)) : 0,
+      scoredSamples: totalSamples,
+    },
+    students,
+  };
+
+  return summary;
+};
 const parseApiResponse = async (res: Response) => {
   const raw = await res.text();
   try {
@@ -120,6 +243,7 @@ const AdminDashboardPage = () => {
   const [emotionSummary, setEmotionSummary] = useState<EmotionSummaryResponse | null>(null);
   const [emotionSummaryLoading, setEmotionSummaryLoading] = useState(false);
   const [emotionSummaryError, setEmotionSummaryError] = useState("");
+  const [selectedMentor, setSelectedMentor] = useState("all");
 
   const adminToken = localStorage.getItem(ADMIN_AUTH_TOKEN_KEY) || "";
 
@@ -148,11 +272,6 @@ const AdminDashboardPage = () => {
   };
 
   const loadOverview = async () => {
-    if (!adminToken) {
-      navigate("/admin-login", { replace: true });
-      return;
-    }
-
     setLoading(true);
     setError("");
 
@@ -176,9 +295,29 @@ const AdminDashboardPage = () => {
   };
 
   useEffect(() => {
+    const token = localStorage.getItem(ADMIN_AUTH_TOKEN_KEY);
+    if (!token) {
+      console.log("No admin token found, redirecting to login");
+      navigate("/admin-login", { replace: true });
+      return;
+    }
+    console.log("Admin authenticated, loading dashboard");
+    console.log("Admin token exists:", !!token);
     void loadOverview();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const mentorOptions = useMemo(() => {
+    if (!overview) return ["all"];
+    const names = Array.from(new Set(overview.sessions.map((s) => s.mentorName)));
+    return ["all", ...names];
+  }, [overview]);
+
+  const filteredSessions = useMemo(() => {
+    if (!overview) return [] as AdminSession[];
+    const sessions = overview.sessions;
+    return selectedMentor === "all" ? sessions : sessions.filter((s) => s.mentorName === selectedMentor);
+  }, [overview, selectedMentor]);
 
   const roleBadge = (role: UserRole) => {
     if (role === "mentor") return <Badge variant="outline">Mentor</Badge>;
@@ -196,6 +335,7 @@ const AdminDashboardPage = () => {
 
     setWorkingId(user._id);
     try {
+      console.log(`Toggling user ${user._id} disabled status to:`, nextDisabled);
       const res = await adminFetch(`/admin/users/${user._id}/disable`, {
         method: "PATCH",
         body: JSON.stringify({ disabled: nextDisabled }),
@@ -207,7 +347,20 @@ const AdminDashboardPage = () => {
           : "Failed to update user";
         throw new Error(message);
       }
-      await loadOverview();
+      
+      console.log("User updated on database, updating UI");
+      
+      // Update overview state immediately without refetching
+      setOverview((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          users: prev.users.map((u) =>
+            u._id === user._id ? { ...u, disabled: nextDisabled } : u
+          ),
+        };
+      });
+      console.log("User status updated in UI");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update user");
     } finally {
@@ -222,6 +375,7 @@ const AdminDashboardPage = () => {
 
     setWorkingId(user._id);
     try {
+      console.log("Deleting user:", user._id);
       const res = await adminFetch(`/admin/users/${user._id}`, { method: "DELETE" });
       const data = await parseApiResponse(res);
       if (!res.ok) {
@@ -230,7 +384,24 @@ const AdminDashboardPage = () => {
           : "Failed to remove user";
         throw new Error(message);
       }
-      await loadOverview();
+      
+      console.log("User deleted from database, updating UI");
+      
+      // Update overview state immediately without refetching
+      setOverview((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          users: prev.users.filter((u) => u._id !== user._id),
+          stats: {
+            ...prev.stats,
+            totalUsers: Math.max(0, prev.stats.totalUsers - 1),
+            totalLearners: user.role === "learner" ? Math.max(0, prev.stats.totalLearners - 1) : prev.stats.totalLearners,
+            totalMentors: user.role === "mentor" ? Math.max(0, prev.stats.totalMentors - 1) : prev.stats.totalMentors,
+          },
+        };
+      });
+      console.log("User removed from UI");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to remove user");
     } finally {
@@ -245,6 +416,7 @@ const AdminDashboardPage = () => {
 
     setWorkingId(session._id);
     try {
+      console.log("Deleting session:", session._id);
       const res = await adminFetch(`/admin/sessions/${session._id}`, { method: "DELETE" });
       const data = await parseApiResponse(res);
       if (!res.ok) {
@@ -253,7 +425,27 @@ const AdminDashboardPage = () => {
           : "Failed to remove session";
         throw new Error(message);
       }
-      await loadOverview();
+
+      console.log("Session deleted from database, updating UI");
+      
+      // Update overview state immediately without refetching
+      setOverview((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          sessions: prev.sessions.filter((s) => s._id !== session._id),
+          sessionsByType: {
+            upcoming: prev.sessionsByType.upcoming.filter((s) => s._id !== session._id),
+            live: prev.sessionsByType.live.filter((s) => s._id !== session._id),
+            past: prev.sessionsByType.past.filter((s) => s._id !== session._id),
+          },
+          stats: {
+            ...prev.stats,
+            totalSessions: Math.max(0, prev.stats.totalSessions - 1),
+          },
+        };
+      });
+      console.log("Session removed from UI");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to remove session");
     } finally {
@@ -320,17 +512,40 @@ const AdminDashboardPage = () => {
     setEmotionSummaryError("");
 
     try {
-      const res = await fetch(`${API_BASE}/emotion/summary?sessionId=${encodeURIComponent(sessionId)}`);
+      const res = await fetch(`${API_BASE}/emotion/debug/${encodeURIComponent(sessionId)}`);
       const data = await parseApiResponse(res);
 
       if (!res.ok) {
         const message = data && typeof data === "object" && "error" in data
           ? String((data as { error: unknown }).error)
-          : "Failed to load emotion summary";
+          : "Failed to load attention summary";
         throw new Error(message);
       }
 
-      setEmotionSummary(data as EmotionSummaryResponse);
+      const emotionDocs = Array.isArray(data?.emotions) ? (data.emotions as EmotionDoc[]) : Array.isArray(data) ? (data as EmotionDoc[]) : [];
+      const summary = calculateAttentionSummaryFromDocs(emotionDocs as EmotionDoc[]);
+
+      // Normalize into EmotionSummaryResponse for admin UI
+      const normalized: EmotionSummaryResponse = {
+        sessionId: data?.session?._id || sessionId,
+        total: summary.summary.totalSamples,
+        counts: summary.summary.counts,
+        percentages: summary.summary.percentages,
+        engagement: summary.summary.attentionScore,
+        students: summary.students.map((s: any) => ({
+          userId: s.userId,
+          studentName: s.studentName,
+          total: s.totalSamples,
+          counts: s.counts,
+          percentages: s.percentages,
+          engagement: s.attentionScore,
+          latestEmotion: s.lastSeenAt || "",
+          lastSeenAt: s.lastSeenAt || "",
+        })),
+      };
+
+      console.log("Fetched summary:", normalized);
+      setEmotionSummary(normalized);
     } catch (err) {
       setEmotionSummaryError(err instanceof Error ? err.message : "Failed to load emotion summary");
     } finally {
@@ -526,6 +741,26 @@ const AdminDashboardPage = () => {
               <CardDescription className="text-xs sm:text-sm">Review upcoming, live, and past sessions. Remove inappropriate sessions if needed.</CardDescription>
             </CardHeader>
             <CardContent className="px-0 sm:px-6 pb-4 overflow-x-auto">
+              <div className="px-4 sm:px-6 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Users className="w-4 h-4 text-muted-foreground" />
+                  <label className="text-sm sm:text-base font-medium">Sessions by Mentor</label>
+                  <select
+                    value={selectedMentor}
+                    onChange={(e) => setSelectedMentor(e.target.value)}
+                    className="ml-3 h-9 text-sm border border-border/60 rounded px-2 bg-background"
+                    aria-label="Filter by mentor"
+                  >
+                    <option value="all">All Mentors</option>
+                    {mentorOptions.filter((m) => m !== "all").map((mentor) => (
+                      <option key={mentor} value={mentor}>{mentor}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="text-xs sm:text-sm text-muted-foreground">
+                  {selectedMentor === "all" ? `Showing ${filteredSessions.length} sessions` : `Showing ${filteredSessions.length} sessions from ${selectedMentor}`}
+                </div>
+              </div>
               <div className="inline-block min-w-full">
               <table className="w-full text-xs sm:text-sm">
               <thead>
@@ -538,7 +773,7 @@ const AdminDashboardPage = () => {
                   </tr>
                 </thead>
               <tbody>
-                  {overview.sessions.map((session) => (
+                  {filteredSessions.map((session) => (
                     <tr key={session._id} className="border-b border-border/40 hover:bg-muted/50 transition-colors">
                       <td className="py-2.5 px-2 sm:px-3">
                         <p className="font-medium text-foreground text-sm truncate">{session.title}</p>
@@ -575,11 +810,11 @@ const AdminDashboardPage = () => {
         </section>
 
         <section className="space-y-3 sm:space-y-4">
-          <h2 className="text-lg sm:text-xl font-semibold text-foreground">Emotion Insights</h2>
+          <h2 className="text-lg sm:text-xl font-semibold text-foreground">Attention Insights</h2>
           <Card className="border-border/60">
             <CardHeader className="px-3 sm:px-6 py-4">
-              <CardTitle className="text-base sm:text-lg">Session Emotion Summary</CardTitle>
-              <CardDescription className="text-xs sm:text-sm">View emotion trends and engagement for any live session or room ID.</CardDescription>
+              <CardTitle className="text-base sm:text-lg">Session Attention Summary</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">View attention tracking metrics and engagement for any live session or room ID.</CardDescription>
             </CardHeader>
             <CardContent className="px-3 sm:px-6 pb-4 space-y-3 sm:space-y-4">
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-end">
@@ -604,12 +839,12 @@ const AdminDashboardPage = () => {
           {emotionSummary && (
             <div className="space-y-3 sm:space-y-4">
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-3">
-                {EMOTION_KEYS.map((key) => (
+                {ATTENTION_KEYS.map((key) => (
                   <Card key={key} className="border-border/60">
                     <CardContent className="p-3 sm:p-4">
                       <p className="text-xs text-muted-foreground capitalize">{key}</p>
-                      <p className="text-lg sm:text-xl font-bold text-foreground mt-1">{emotionSummary.percentages[key] ?? 0}%</p>
-                      <p className="text-[11px] text-muted-foreground mt-1">{emotionSummary.counts[key] ?? 0} samples</p>
+                      <p className="text-lg sm:text-xl font-bold text-foreground mt-1">{emotionSummary?.percentages?.[key] ?? 0}%</p>
+                      <p className="text-[11px] text-muted-foreground mt-1">{emotionSummary?.counts?.[key] ?? 0} samples</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -619,27 +854,27 @@ const AdminDashboardPage = () => {
                 <Card className="border-border/60">
                   <CardContent className="p-3 sm:p-4">
                     <p className="text-xs sm:text-sm text-muted-foreground">Total Samples</p>
-                    <p className="text-xl sm:text-2xl font-bold text-foreground mt-1">{emotionSummary.total}</p>
+                    <p className="text-xl sm:text-2xl font-bold text-foreground mt-1">{emotionSummary?.total ?? 0}</p>
                   </CardContent>
                 </Card>
                 <Card className="border-border/60">
                   <CardContent className="p-3 sm:p-4">
                     <p className="text-xs sm:text-sm text-muted-foreground">Engagement Score</p>
-                    <p className="text-xl sm:text-2xl font-bold text-foreground mt-1">{emotionSummary.engagement}%</p>
+                    <p className="text-xl sm:text-2xl font-bold text-foreground mt-1">{emotionSummary?.engagement ?? 0}%</p>
                   </CardContent>
                 </Card>
                 <Card className="border-border/60">
                   <CardContent className="p-3 sm:p-4">
                     <p className="text-xs sm:text-sm text-muted-foreground">Session ID</p>
-                    <p className="text-sm sm:text-base font-medium text-foreground mt-1 break-all">{emotionSummary.sessionId}</p>
+                    <p className="text-sm sm:text-base font-medium text-foreground mt-1 break-all">{emotionSummary?.sessionId ?? ""}</p>
                   </CardContent>
                 </Card>
               </div>
 
               <Card className="border-border/60">
                 <CardHeader className="px-3 sm:px-6 py-4">
-                  <CardTitle className="text-base sm:text-lg">Student Emotion Breakdown</CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">Each student’s emotion percentages and engagement score.</CardDescription>
+                  <CardTitle className="text-base sm:text-lg">Student Attention Breakdown</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">Each student’s attention percentages and engagement score.</CardDescription>
                 </CardHeader>
                 <CardContent className="px-3 sm:px-6 pb-4 space-y-3">
                   {emotionSummary.students.length > 0 ? emotionSummary.students.map((student) => (
@@ -647,20 +882,20 @@ const AdminDashboardPage = () => {
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div>
                           <p className="font-medium text-foreground text-sm sm:text-base">{student.studentName}</p>
-                          <p className="text-xs text-muted-foreground">Latest emotion: {student.latestEmotion}</p>
+                          <p className="text-xs text-muted-foreground">Latest state: {student.latestEmotion}</p>
                         </div>
                         <Badge className="w-fit bg-primary/10 text-primary border-0 text-xs">Engagement {student.engagement}%</Badge>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {EMOTION_KEYS.map((key) => (
+                        {ATTENTION_KEYS.map((key) => (
                           <span key={key} className="rounded-full border border-border/70 bg-background px-2.5 py-1 text-[11px] text-muted-foreground">
-                            {key}: {student.percentages[key] ?? 0}%
+                            {key}: {student.percentages?.[key] ?? 0}%
                           </span>
                         ))}
                       </div>
                     </div>
                   )) : (
-                    <p className="text-xs sm:text-sm text-muted-foreground">No emotion samples found for this session.</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground">No attention summary available for this session.</p>
                   )}
                 </CardContent>
               </Card>

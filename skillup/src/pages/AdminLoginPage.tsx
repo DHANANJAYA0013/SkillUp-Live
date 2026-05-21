@@ -25,10 +25,12 @@ const AdminLoginPage = () => {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (localStorage.getItem(ADMIN_AUTH_TOKEN_KEY)) {
+    const token = localStorage.getItem(ADMIN_AUTH_TOKEN_KEY);
+    if (token) {
+      console.log("Admin already authenticated");
       navigate("/admin-dashboard", { replace: true });
     }
-  }, [navigate]);
+  }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -62,6 +64,9 @@ const AdminLoginPage = () => {
 
       localStorage.setItem(ADMIN_AUTH_TOKEN_KEY, token);
       localStorage.setItem("isAdminAuthenticated", "true");
+      console.log("Admin login success");
+      console.log("Admin token:", token.substring(0, 10) + "...");
+      console.log("Redirecting to dashboard");
       navigate("/admin-dashboard", { replace: true });
     } catch {
       setError("Unable to verify admin code right now. Please try again.");
