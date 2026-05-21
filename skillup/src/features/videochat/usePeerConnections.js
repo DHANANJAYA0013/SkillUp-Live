@@ -46,7 +46,7 @@ export function usePeerConnections({ socketRef, localStreamRef, onRemoteStream, 
       pc.ontrack = (e) => {
         e.streams[0]?.getTracks().forEach((t) => remoteStream.addTrack(t));
         onRemoteStream(peerId, remoteStream);
-        console.log("[Remote stream updated]", peerId);
+        console.log("[remote stream received]", remoteStream);
       };
 
       pc.onicecandidate = (e) => {
@@ -133,7 +133,7 @@ export function usePeerConnections({ socketRef, localStreamRef, onRemoteStream, 
       const sender = pc.getSenders().find((s) => s.track?.kind === kind);
       if (sender && newTrack) {
         sender.replaceTrack(newTrack).catch(() => {});
-        console.log("[Track replaced]");
+        console.log("[replaceTrack success]");
       }
     });
   }, []);
@@ -145,7 +145,7 @@ export function usePeerConnections({ socketRef, localStreamRef, onRemoteStream, 
       const sender = pc.getSenders().find((s) => s.track?.kind === "video");
       if (sender) {
         sender.replaceTrack(newTrack).catch(() => {});
-        console.log("[Track replaced]");
+        console.log("[replaceTrack success]");
       } else if (newTrack) {
         pc.addTrack(newTrack, stream);
         peersNeedingRenegotiation.push(Object.keys(pcsRef.current).find((peerId) => pcsRef.current[peerId] === pc));

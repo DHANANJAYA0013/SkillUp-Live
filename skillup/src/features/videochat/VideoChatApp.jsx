@@ -139,7 +139,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
   const addPeer = useCallback((id, info) => {
     setPeers((prev) => ({
       ...prev,
-      [id]: { name: info.name, stream: null, videoOn: true, audioOn: true, attentionStatus: "", ...prev[id] },
+      [id]: { name: info.name, stream: null, videoOn: true, audioOn: true, attentionStatus: "", videoVersion: Date.now(), ...prev[id] },
     }));
   }, []);
 
@@ -154,14 +154,14 @@ function Room({ userName, roomId, onLeave, onBack }) {
   const setPeerStream = useCallback((id, stream) => {
     setPeers((prev) => ({
       ...prev,
-      [id]: { ...prev[id], stream },
+      [id]: { ...prev[id], stream, videoVersion: Date.now() },
     }));
   }, []);
 
   const setPeerMedia = useCallback((id, { video, audio }) => {
     setPeers((prev) => ({
       ...prev,
-      [id]: { ...prev[id], videoOn: video, audioOn: audio },
+      [id]: { ...prev[id], videoOn: video, audioOn: audio, videoVersion: Date.now() },
     }));
   }, []);
 
@@ -837,7 +837,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
   };
 
   const allParticipants = [
-    { id: "local", name: userName, stream: localStream, isLocal: true, videoOn, audioOn, emotion },
+    { id: "local", name: userName, stream: localStream, isLocal: true, videoOn, audioOn, emotion, videoVersion: videoReady },
     ...Object.entries(peers).map(([id, p]) => ({
       id,
       name: p.name,
@@ -846,6 +846,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
       videoOn: p.videoOn !== false,
       audioOn: p.audioOn !== false,
       emotion: p.attentionStatus || "",
+      videoVersion: p.videoVersion || Date.now(),
     })),
   ];
 
@@ -931,6 +932,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
                     videoOn={p.videoOn}
                     audioOn={p.audioOn}
                     emotion={p.emotion}
+                    videoVersion={p.videoVersion}
                     externalVideoRef={p.isLocal ? videoRef : undefined}
                     onVideoReady={p.isLocal ? handleLocalVideoReady : undefined}
                   />
@@ -950,6 +952,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
                     videoOn={spotlightUser.videoOn}
                     audioOn={spotlightUser.audioOn}
                     emotion={spotlightUser.emotion}
+                    videoVersion={spotlightUser.videoVersion}
                     externalVideoRef={spotlightUser.isLocal ? videoRef : undefined}
                     onVideoReady={spotlightUser.isLocal ? handleLocalVideoReady : undefined}
                   />
@@ -967,6 +970,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
                       videoOn={p.videoOn}
                       audioOn={p.audioOn}
                       emotion={p.emotion}
+                      videoVersion={p.videoVersion}
                       externalVideoRef={p.isLocal ? videoRef : undefined}
                       onVideoReady={p.isLocal ? handleLocalVideoReady : undefined}
                     />

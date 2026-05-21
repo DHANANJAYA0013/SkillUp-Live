@@ -8,6 +8,7 @@ export default function VideoTile({
   videoOn,
   audioOn,
   emotion = "",
+  videoVersion = 0,
   externalVideoRef,
   onVideoReady,
   emotionConfidence = 0,
@@ -30,13 +31,16 @@ export default function VideoTile({
 
   useEffect(() => {
     if (videoRef.current && stream) {
+      videoRef.current.srcObject = null;
       videoRef.current.srcObject = stream;
+      videoRef.current.load();
       // Force video playback after assigning srcObject to ensure live stream is active
       videoRef.current.play().catch((err) => {
         console.warn("[VideoTile] Video play() failed (may resume on interaction):", err);
       });
+      console.log("[video refreshed]");
     }
-  }, [stream, videoRef]);
+  }, [stream, videoVersion, videoRef]);
 
   return (
     <div className="video-tile" data-local={isLocal}>
