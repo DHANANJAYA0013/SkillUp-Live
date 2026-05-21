@@ -120,6 +120,7 @@ const calculateAttentionSummaryFromDocs = (emotionDocs: EmotionDoc[]): Attention
     rejoining: 0,
   };
 
+  
   const studentsByUserId = new Map<string, AttentionSummaryStudent>();
 
   emotionDocs.forEach((doc) => {
