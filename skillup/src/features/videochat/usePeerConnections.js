@@ -139,6 +139,8 @@ export function usePeerConnections({ socketRef, localStreamRef, onRemoteStream, 
   }, []);
 
   const syncVideoTrackOnPeers = useCallback((newTrack, stream) => {
+    const peersNeedingRenegotiation = [];
+
     Object.values(pcsRef.current).forEach((pc) => {
       const sender = pc.getSenders().find((s) => s.track?.kind === "video");
       if (sender) {
@@ -146,9 +148,12 @@ export function usePeerConnections({ socketRef, localStreamRef, onRemoteStream, 
         console.log("[Track replaced]");
       } else if (newTrack) {
         pc.addTrack(newTrack, stream);
-        console.log("[Camera] track added to peer");
+        peersNeedingRenegotiation.push(Object.keys(pcsRef.current).find((peerId) => pcsRef.current[peerId] === pc));
+        console.log("[WebRTC] new track added");
       }
     });
+
+    return peersNeedingRenegotiation.filter(Boolean);
   }, []);
 
   const stopVideoTrackOnPeers = useCallback(() => {
@@ -156,7 +161,6 @@ export function usePeerConnections({ socketRef, localStreamRef, onRemoteStream, 
       const sender = pc.getSenders().find((s) => s.track?.kind === "video");
       if (sender?.track) {
         sender.track.stop();
-        sender.replaceTrack(null).catch(() => {});
       }
     });
   }, []);

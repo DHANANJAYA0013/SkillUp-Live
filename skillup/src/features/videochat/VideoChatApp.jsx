@@ -788,14 +788,19 @@ function Room({ userName, roomId, onLeave, onBack }) {
 
     if (newState) {
       try {
-        console.log("[Camera] enabled");
+        console.log("[Camera ON]");
         const newStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         const newTrack = newStream.getVideoTracks()[0];
         const updatedStream = new MediaStream([...stream.getAudioTracks(), newTrack]);
         localStreamRef.current = updatedStream;
         setLocalStream(updatedStream);
         console.log("[Camera] local stream updated");
-        syncVideoTrackOnPeers(newTrack, updatedStream);
+        const peersNeedingRenegotiation = syncVideoTrackOnPeers(newTrack, updatedStream);
+        peersNeedingRenegotiation.forEach((peerId) => {
+          if (peerId) {
+            makeOffer(peerId);
+          }
+        });
         setVideoReady(Date.now());
       } catch {
         // Ignore camera re-enable errors and keep previous state.
@@ -809,7 +814,7 @@ function Room({ userName, roomId, onLeave, onBack }) {
     }
 
     socketRef.current?.emit("media-state", { video: newState, audio: audioOn });
-  }, [videoOn, audioOn, syncVideoTrackOnPeers, stopVideoTrackOnPeers]);
+  }, [videoOn, audioOn, makeOffer, syncVideoTrackOnPeers, stopVideoTrackOnPeers]);
 
   const toggleAudio = useCallback(() => {
     const stream = localStreamRef.current;
