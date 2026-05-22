@@ -722,7 +722,7 @@ const MentorDashboardPage = () => {
           )}
 
           <section className="grid gap-4 md:grid-cols-3">
-            <Card className="border-white/70 bg-white/75 backdrop-blur-xl shadow-[0_18px_40px_rgba(91,80,171,0.08)]">
+            {/* <Card className="border-white/70 bg-white/75 backdrop-blur-xl shadow-[0_18px_40px_rgba(91,80,171,0.08)]">
               <CardContent className="p-4 sm:p-5">
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-indigo-700">
                   <Layers3 className="h-3.5 w-3.5" /> Session room
@@ -734,7 +734,7 @@ const MentorDashboardPage = () => {
                   </Link>
                 </Button>
               </CardContent>
-            </Card>
+            </Card> */}
 
             <Card className="border-white/70 bg-white/75 backdrop-blur-xl shadow-[0_18px_40px_rgba(91,80,171,0.08)]">
               <CardContent className="p-4 sm:p-5">
